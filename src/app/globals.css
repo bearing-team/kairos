@@ -34,6 +34,9 @@
 
   --color-urgent: var(--color-urgent);
   --color-urgent-text: var(--color-urgent-text);
+  --color-check-bg: var(--color-check-bg);
+  --color-check-fg: var(--color-check-fg);
+  --color-ready: var(--color-ready);
   --color-timeline-idle: var(--color-timeline-idle);
 
   --color-chip: #f1f2f6; /* 사이드바 카운트 배지 */

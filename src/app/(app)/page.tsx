@@ -13,6 +13,7 @@ import { NewMatchCard, UrgentCard } from "@/components/home/SideCards";
 import { formatKstHeaderDate } from "@/lib/kst";
 import { requireUser } from "@/server/session";
 import { getHomeData, HOME_TABS, scoreBacklog, type HomeTab } from "@/server/matches";
+import { draftProgress } from "@/server/drafts";
 import { llmConfigured } from "@/server/llm";
 
 type SP = { tab?: string };
@@ -34,6 +35,7 @@ async function HomeContent({ searchParams }: { searchParams: Promise<SP> }) {
   const tab: HomeTab = HOME_TABS.includes(sp.tab as HomeTab) ? (sp.tab as HomeTab) : "all";
   const now = new Date();
   const [d, backlog] = await Promise.all([getHomeData(tab, now), scoreBacklog(now)]);
+  const heroProgress = d.hero ? ((await draftProgress([d.hero.id])).get(d.hero.id) ?? null) : null;
   const hasAny = d.tabCounts.all > 0;
   const hasSide = !!(d.urgent || d.fresh);
 
@@ -70,7 +72,7 @@ async function HomeContent({ searchParams }: { searchParams: Promise<SP> }) {
         <>
           {d.hero || hasSide ? (
             <section aria-label="이번 주 포커스" className="flex flex-wrap gap-5">
-              {d.hero ? <FocusHeroCard r={d.hero} now={now} /> : null}
+              {d.hero ? <FocusHeroCard r={d.hero} now={now} progress={heroProgress} /> : null}
               {hasSide ? (
                 <div className={`flex min-w-0 flex-col gap-5 ${d.hero ? "flex-[1_1_300px]" : "flex-1 md:flex-row"}`}>
                   {d.urgent ? <UrgentCard r={d.urgent} now={now} reviewers={d.reviewers} /> : null}

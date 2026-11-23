@@ -50,3 +50,10 @@ next-env.d.ts
 
 # prisma generated client
 /src/generated/
+
+# 실제 공고 양식 샘플 (공개 공고 첨부, 커밋하지 않음). 목록은 manifest.tsv
+fixtures/forms/*
+!fixtures/forms/manifest.tsv
+!fixtures/forms/README.md
+# 첨부·초안 파일 저장소 (STORAGE_DRIVER=local)
+storage/

@@ -69,7 +69,7 @@ export function NewMatchCard({ r, now }: { r: AppRow; now: Date }) {
           to="drafting"
           label="초안 만들기"
           pendingLabel="시작하는 중"
-          redirectTo={`/announcements/${a.id}`}
+          redirectTo={`/applications/${r.id}/draft`}
           className={buttonClass("soft", "sm", "h-9 text-[13px]")}
         />
       </div>

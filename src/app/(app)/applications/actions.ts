@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { ensureDraft, runDraft } from "@/server/drafting/run";
 import { z } from "zod";
 import { requireUser } from "@/server/session";
 import { prisma } from "@/server/db";
@@ -38,6 +40,11 @@ export async function changeStatus(applicationId: string, _prev: ActionState, fd
     await setStatus(applicationId, app.status, to, { reason: reason ?? null, userId: user.id });
   } catch {
     return { ok: false, message: "그 사이 다른 사람이 상태를 바꿨어요. 새로고침해 주세요" };
+  }
+  // 진행 결정 → 첨부 받기·초안 쓰기는 응답 뒤에 (ARCHITECTURE.md 6절)
+  if (to === "drafting") {
+    const draftId = await ensureDraft(applicationId, user.id);
+    if (draftId) after(() => runDraft(draftId).catch((e) => console.error("[draft]", e)));
   }
   revalidatePath("/", "layout");
   if (redirectTo) redirect(redirectTo);

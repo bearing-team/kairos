@@ -25,7 +25,7 @@ PRD의 기능을 어떻게 만들지. 1절 스택은 M0(2026-11-23)에서 아래
 | LLM | Anthropic API (`@anthropic-ai/sdk`), 모델은 env로 | 점수·초안 모두 JSON 출력 강제 |
 | 인증 | Auth.js + Google, 팀 도메인 화이트리스트 | |
 | 파일 저장 | 로컬 디스크(개발) → S3 호환(Cloudflare R2 등) | 첨부, 업로드 문서, 내보내기 |
-| 문서 처리 | **M4에서 결정**: Node만으로 갈지, Python `doc-worker` 추가할지 | HWP 파싱은 Python 생태계(pyhwp 등)가 더 성숙. 아래 6절 |
+| 문서 처리 | **Node만 (M4 결정)**: HWPX·DOCX zip+XML, HWP 5 OLE+레코드, PDF unpdf | 실제 양식 12/12 성공. doc-worker는 배포용 HWP가 잦거나 원본 양식 채우기(F4.6) 때 다시 검토 — `docs/forms-parsing.md` |
 | 배포 | 단일 VM + docker compose (web, worker, postgres) | 내부 툴, 4명 사용 |
 
 ## 2. 구성
@@ -44,7 +44,7 @@ PRD의 기능을 어떻게 만들지. 1절 스택은 M0(2026-11-23)에서 아래
 │  draft:generate / draft:regenerate-section │
 │  notify:slack-digest / notify:deadline     │
 └──────┬─────────────────────────────────────┘
-       │ (M4, 필요 시)
+       │ (M4에서 안 두기로 함)
 ┌──────▼─────────┐
 │ doc-worker      │  HWP/HWPX/DOCX/PDF → 구조화 텍스트
 │ (Python, 옵션)  │
@@ -184,18 +184,23 @@ SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, up
 
 ## 6. 문서 다운로드·파싱·초안 (M4)
 
-1. 진행 결정(`drafting` 전환) → `docs:fetch`: 첨부 다운로드 → 저장
-2. `docs:parse`: 형식별 텍스트·구조 추출
-   - DOCX: `mammoth`(Node) 또는 python-docx
-   - PDF: `pdfjs`(Node) 또는 pdfplumber
-   - HWPX: zip 안 XML 직접 파싱 가능
-   - HWP(구형 바이너리): Node 지원이 약함 → Python `pyhwp`(hwp5txt/hwp5html) 기반 `doc-worker` 또는 LibreOffice 변환 경유. **M4 첫 작업으로 실제 공고 양식 10개로 성공률 측정 후 결정**
-3. 양식에서 섹션 목록(제목, 작성 요령, 분량 제한) 추출 → 실패 시 기본 템플릿 선택(`templates/startup-package.ts`, `voucher.ts`, `rnd.ts`)
-4. `draft:generate`: 섹션별로 LLM 호출
-   - 입력: 섹션 제목·요령·분량, 공고 평가 기준, 회사 프로필, 추천 아이템 카드, 문서 라이브러리 검색 결과(처음엔 키워드 검색, 이후 임베딩)
-   - 규칙: 입력에 없는 사실·수치 금지 → `【확인 필요: 무엇】`으로 남김. 분량 제한 준수. 과장어 금지
-   - 출력 JSON: `{ "content": "markdown", "needsCheck": ["..."] }`
-5. 제출 서류 추출 → `RequiredDoc` 생성, 라이브러리와 이름 매칭
+**결정 (2026-11-23):** doc-worker 없이 Node만으로 간다. 실제 양식 12개 12/12 성공 — `docs/forms-parsing.md`
+
+1. 진행 결정(`drafting` 전환, 또는 초안 화면의 "초안 만들기") → 초안 새 버전(`Draft.status=preparing`) → 응답 뒤(`after()`)에 `runDraft()`
+2. 첨부 받기 `src/server/drafting/attachments.ts`
+   - 기업마당 다운로드 링크는 토큰(`downloadToken`, iat)이 있어 만료된다 → **받을 때마다 상세 페이지를 다시 열어** 새 링크를 얻는다 (`links.ts`: 기업마당 `.file_name` + `fileDown.do`, K-Startup `.board_file a.file_bg[title]` + `/afile/fileDownload/`, 그 밖은 확장자 링크)
+   - 같은 파일 이름이면 링크만 바꾼다. 내부망 차단·리다이렉트마다 재검사·30MB 제한(`download.ts`). xlsx·zip·이미지는 받지 않는다
+   - 저장: `storage/attachments/<sha256>.<확장자>` (`STORAGE_DIR`). 앱에서는 `/api/attachments/[id]`로 내려받는다
+3. 글자 뽑기 `src/server/docs/`: HWPX·DOCX(zip+XML), HWP 5(OLE+레코드), PDF(unpdf) → 문단·표 블록 → 텍스트(표는 "칸 | 칸")
+4. 섹션·평가 기준·제출 서류: LLM 1회 (`prompts/form-sections.v1.ts`). 입력 = 양식(사업계획서 > 계획서 > 신청서 순, 합쳐서 6만 자) + 공고문(3만 자)
+   - 섹션을 못 찾거나 키가 없으면 기본 템플릿 `drafting/templates.ts` (창업패키지형 PSST / 바우처형 / R&D형, 공고명으로 고름)
+   - 제출 서류는 `RequiredDoc`(createMany skipDuplicates → 사람이 바꾼 상태 유지). 문서 라이브러리 매칭은 아직
+5. 섹션별 초안: 섹션마다 LLM 1회, 동시 3개 (`prompts/draft-section.v1.ts`). 시스템(규칙+회사+공고+평가 기준+전체 목차)은 캐시, 사용자 메시지에 섹션 제목·요령·분량
+   - 규칙: 입력에 없는 사실·수치 금지 → `【확인 필요: 무엇】`. 과장어 금지. 분량을 10% 넘게 넘기면 한 번 줄여 달라고 다시
+   - 출력 JSON `{ content, needsCheck[] }` → `needsCheck`는 본문에서 찾은 표시와 합친다(`lib/needsCheck.ts`)
+   - 사람이 고치면 `generatedBy=human`, 확인 필요는 본문에서 다시 센다. 섹션별 다시 쓰기(다시/더 구체적으로/짧게/평가 기준 반영)
+6. 15분 넘게 preparing·generating이면 멈춘 것으로 보고 다시 만들 수 있다
+7. 아직 안 한 것: 원본 양식에 채워 내보내기(F4.6), 문서 라이브러리 검색(RAG), 리뷰 코멘트, 내보내기(DOCX/PDF/MD)
 
 ## 7. 알림
 - Slack Incoming Webhook (env `SLACK_WEBHOOK_URL`)

@@ -20,6 +20,9 @@ import { formatKstRelative } from "@/lib/format";
 import { requireUser } from "@/server/session";
 import { getAnnouncementDetail } from "@/server/matches";
 import { llmConfigured } from "@/server/llm";
+import { draftProgress } from "@/server/drafts";
+import { prisma } from "@/server/db";
+import { RequiredDocs } from "@/components/draft/RequiredDocs";
 
 export default function AnnouncementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return (
@@ -42,6 +45,9 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   if (a.duplicateOf) redirect(`/announcements/${a.duplicateOf.id}`); // 중복이면 대표 공고로
 
   const now = new Date();
+  const [progress, docs] = app
+    ? await Promise.all([draftProgress([app.id]).then((m) => m.get(app.id) ?? null), prisma.requiredDoc.findMany({ where: { applicationId: app.id }, orderBy: [{ order: "asc" }, { createdAt: "asc" }] })])
+    : [null, []];
   const t = timeline(a.applyStart, a.applyEnd, now);
   const reasons = Array.isArray(match?.reasons) ? (match.reasons as string[]) : [];
   const risks = [...(Array.isArray(match?.risks) ? (match.risks as string[]) : []), ...(match?.filterNotes ?? [])];
@@ -218,7 +224,27 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
             </p>
           ) : null}
 
-          {app ? <Actions app={app} /> : <p className="m-0 text-[13px] text-ink-3">아직 매칭 전이에요. 새 공고 가져오기를 누르면 규칙 검사를 해요.</p>}
+          {app && (progress || docs.length) ? (
+            <section aria-label="초안" className="flex flex-col gap-3 border-t border-line pt-5">
+              {progress ? (
+                <div className="flex flex-col gap-1">
+                  <span className="text-[15px] font-bold">사업계획서 초안</span>
+                  <span className="text-[13px] text-ink-2">
+                    {progress.status === "preparing" ? "양식을 읽는 중이에요" : progress.status === "failed" ? "만들지 못했어요" : `${progress.done}/${progress.total} 섹션 완료`}
+                    {progress.checks ? <span className="ml-2 rounded-full bg-check-bg px-2 py-0.5 text-[12px] font-semibold text-check-fg">확인 필요 {progress.checks}곳</span> : null}
+                  </span>
+                </div>
+              ) : null}
+              {progress ? (
+                <Link href={`/applications/${app.id}/draft`} className={buttonClass(app.status === "drafting" ? "primary" : "soft", "md", "w-full")}>
+                  {app.status === "drafting" ? "초안 이어 쓰기" : "초안 보기"}
+                </Link>
+              ) : null}
+              {docs.length ? <RequiredDocs applicationId={app.id} docs={docs} /> : null}
+            </section>
+          ) : null}
+
+          {app ? <Actions app={app} hasDraft={!!progress} /> : <p className="m-0 text-[13px] text-ink-3">아직 매칭 전이에요. 새 공고 가져오기를 누르면 규칙 검사를 해요.</p>}
 
           {app?.events.length ? (
             <section aria-labelledby="history" className="flex flex-col gap-2 border-t border-line pt-4">
@@ -242,7 +268,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   );
 }
 
-function Actions({ app }: { app: { id: string; status: keyof typeof STATUS_STYLE } }) {
+function Actions({ app, hasDraft }: { app: { id: string; status: keyof typeof STATUS_STYLE }; hasDraft: boolean }) {
   const primary = PRIMARY_ACTION[app.status];
   const next = allowedNext(app.status);
   const canExclude = next.includes("excluded");
@@ -256,11 +282,18 @@ function Actions({ app }: { app: { id: string; status: keyof typeof STATUS_STYLE
           <StatusButton applicationId={app.id} to="result_fail" label="미선정" className={buttonClass("soft", "md", "w-full")} formClassName="flex-1" />
         </div>
       ) : primary ? (
-        <StatusButton applicationId={app.id} to={primary.to} label={primary.label} className={buttonClass("primary", "lg", "w-full")} />
+        <StatusButton
+          applicationId={app.id}
+          to={primary.to}
+          label={primary.label}
+          pendingLabel={primary.to === "drafting" ? "시작하는 중" : "바꾸는 중"}
+          redirectTo={primary.to === "drafting" ? `/applications/${app.id}/draft` : undefined}
+          className={buttonClass(hasDraft && primary.to === "review" ? "soft" : "primary", "lg", "w-full")}
+        />
       ) : null}
       {canExclude ? <ExcludeDialog applicationId={app.id} className={buttonClass("soft", "md", "w-full")} /> : null}
       {primary?.to === "drafting" ? (
-        <p className="m-0 text-[12px] leading-[1.5] text-ink-3">초안 만들기를 누르면 &lsquo;초안 작성 중&rsquo;으로 바뀌어요. 첨부 양식으로 초안을 자동으로 쓰는 기능은 다음 단계(M4)에서 붙어요.</p>
+        <p className="m-0 text-[12px] leading-[1.5] text-ink-3">초안 만들기를 누르면 첨부 양식을 내려받아 섹션별 초안을 써요. 프로필에 없는 숫자·실적은 【확인 필요】로 남겨요.</p>
       ) : null}
       {others.filter((s) => app.status !== "submitted" || !s.startsWith("result")).length ? (
         <details className="text-[13px]">

@@ -42,6 +42,8 @@ pnpm sync:probe       # 실제 API 응답을 fixtures/<소스>/live-YYYYMMDD.jso
 pnpm worker           # pg-boss 워커(KST): 매일 08:00 기업마당, 08:05 K-Startup, 평일 매시 30분 점수 대기분, 월 09:00 다이제스트, 매일 09:05 마감 알림
 pnpm score [개수|all] # 하드필터 다시 + 점수 대기 공고 LLM 점수 (기본 SCORE_MAX_PER_RUN=30)
 pnpm notify <digest|deadline> [--dry-run]  # Slack 다이제스트·마감 알림 지금 보내기 (--dry-run은 출력만)
+pnpm draft <공고 id|application id>  # 첨부 받기 → 양식 읽기 → 섹션별 초안 (새 버전, 상태는 안 바꿈)
+pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 커밋 안 함)
 ```
 
 처음 세팅: `cp .env.example .env` → `AUTH_SECRET`(openssl rand -base64 32) 채우기 → 위 순서대로.
@@ -76,3 +78,12 @@ pnpm notify <digest|deadline> [--dry-run]  # Slack 다이제스트·마감 알�
 - 마감 알림은 초안 작성 중·리뷰 중만, 구간(7/3/1)마다 한 번(`DeadlineAlert`). 하루를 놓치면 다음 구간에서 보낸다. 발송 실패는 기록만 하고 다음 실행에서 다시
 - 앱: 회사 프로필 → "Slack 알림" 탭에서 미리보기·지금 보내기·보낸 기록
 - 로컬 확인은 가짜 웹훅(`SLACK_WEBHOOK_URL=http://127.0.0.1:<port>/…`)으로. 실제 팀 채널로 테스트 발송은 사람이 한다
+
+## 초안 (M4)
+- 흐름: drafting 전환·"초안 만들기" → `createDraft()` → `after(runDraft)`: `drafting/attachments.ts`(상세 페이지 다시 열어 새 링크 → 내려받기 → `storage/` → `server/docs` 파싱) → `form-sections.v1`(섹션·평가 기준·제출 서류) → `draft-section.v1`(섹션마다). 자세한 건 ARCHITECTURE 6절
+- 파서는 Node만 (`src/server/docs/`, doc-worker 없음 — `docs/forms-parsing.md`). unpdf는 0.12.1 고정 (2.x는 Node 22 필요)
+- `【확인 필요: …】` 찾기·하이라이트·글자 수는 `src/lib/needsCheck.ts`만 쓴다. 색은 토큰 `check-bg`/`check-fg`
+- 초안 화면 `/applications/[id]/draft`: 작업 중이면 `DraftPoller`가 3초마다 `router.refresh()`
+- `src/server/drafting/*`, `src/server/docs/*`는 tsx 스크립트에서도 쓰므로 `server-only`를 붙이지 않는다 (`src/server/drafts.ts`는 화면 전용)
+- LLM 없이 화면 확인: 가짜 Anthropic 서버를 띄우고 `.env`에 `ANTHROPIC_BASE_URL=http://127.0.0.1:<port>` + 아무 키. 끝나면 되돌린다
+

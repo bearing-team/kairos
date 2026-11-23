@@ -24,7 +24,7 @@ export function normalizeUrl(input: string): string {
 }
 
 /** 내부망 주소로 요청하지 않도록 막는다 (서버가 대신 fetch하므로) */
-async function assertPublicHost(url: URL) {
+export async function assertPublicHost(url: URL) {
   const host = url.hostname.replace(/^\[|\]$/g, "");
   const ips = isIP(host) ? [host] : (await lookup(host, { all: true })).map((r) => r.address);
   if (ips.some(isPrivate)) throw new Error("내부망 주소는 가져올 수 없어요");

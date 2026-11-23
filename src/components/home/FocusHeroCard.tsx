@@ -11,7 +11,7 @@ const ghostOnHero =
   "inline-flex h-12 items-center justify-center rounded-full border border-[var(--hero-ghost-border)] bg-transparent px-5 text-[15px] font-semibold text-white transition-colors duration-[120ms] hover:bg-white/10";
 
 /** 홈 히어로 "가장 잘 맞는 공고" — 화면에서 그라데이션은 여기 한 곳 (DESIGN.md FocusHeroCard) */
-export function FocusHeroCard({ r, now }: { r: AppRow; now: Date }) {
+export function FocusHeroCard({ r, now, progress }: { r: AppRow; now: Date; progress?: { done: number; total: number } | null }) {
   const a = r.announcement;
   const reasons = (Array.isArray(r.match.reasons) ? (r.match.reasons as string[]) : []).slice(0, 3);
   const detail = `/announcements/${a.id}`;
@@ -53,16 +53,21 @@ export function FocusHeroCard({ r, now }: { r: AppRow; now: Date }) {
 
       <div className="flex flex-wrap items-center gap-3">
         {r.status === "drafting" ? (
-          <Link href={detail} className={onHero}>
+          <Link href={`/applications/${r.id}/draft`} className={onHero}>
             초안 이어 쓰기
           </Link>
         ) : (
-          <StatusButton applicationId={r.id} to="drafting" label="초안 만들기" pendingLabel="시작하는 중" redirectTo={detail} className={onHero} />
+          <StatusButton applicationId={r.id} to="drafting" label="초안 만들기" pendingLabel="시작하는 중" redirectTo={`/applications/${r.id}/draft`} className={onHero} />
         )}
         {a.url ? (
           <a href={a.url} target="_blank" rel="noreferrer" className={ghostOnHero}>
             공고문 보기
           </a>
+        ) : null}
+        {progress && progress.total ? (
+          <span className="text-[14px] font-medium">
+            사업계획서 초안 {progress.done}/{progress.total} 섹션 완료
+          </span>
         ) : null}
       </div>
     </article>
