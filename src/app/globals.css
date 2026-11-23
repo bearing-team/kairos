@@ -1,0 +1,100 @@
+@import "tailwindcss";
+/* 디자인 토큰 원본. 값은 design/tokens.css에서만 바꾼다 */
+@import "../../design/tokens.css";
+
+/*
+ * 토큰 → Tailwind 유틸리티 매핑 (DESIGN.md 8절, Tailwind v4 CSS 방식)
+ * 예: bg-bg, bg-surface, text-ink-2, bg-accent-soft, rounded-xl, shadow-hero, bg-hero
+ */
+@theme inline {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-surface-sunken: var(--color-surface-sunken);
+  --color-track: var(--color-track);
+
+  --color-ink: var(--color-text);
+  --color-ink-2: var(--color-text-secondary);
+  --color-ink-3: var(--color-text-tertiary);
+  --color-ink-disabled: var(--color-text-disabled);
+  --color-ink-button: var(--color-ink-button);
+
+  --color-line: var(--color-border);
+  --color-line-strong: var(--color-border-strong);
+
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-accent-soft-2: var(--color-accent-soft-2);
+
+  --color-urgent: var(--color-urgent);
+  --color-urgent-text: var(--color-urgent-text);
+  --color-timeline-idle: var(--color-timeline-idle);
+
+  --color-chip: #f1f2f6; /* 사이드바 카운트 배지 */
+  --color-row-hover: #f8f9fc;
+
+  --font-sans: var(--font-sans);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-full: var(--radius-full);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-card: var(--shadow-card);
+  --shadow-hero: var(--shadow-hero);
+
+  --background-image-hero: var(--gradient-hero);
+
+  --ease-brand: var(--ease);
+}
+
+/* 기본 스타일은 base 레이어에 둬야 유틸리티(text-accent 등)가 이긴다 */
+@layer base {
+  html {
+    background: var(--color-bg);
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.6;
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 반응형 기준 (DESIGN.md 7절): md 768 / xl 1200 */
+@theme {
+  --breakpoint-xl: 1200px;
+}

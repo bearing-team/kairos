@@ -1,0 +1,99 @@
+/*
+ * 지원사업 데스크 — 디자인 토큰
+ * 기준: 메인 화면 B안 (Claude Design 캔버스, 2026-11-23 확정)
+ * Tailwind theme.extend에 그대로 매핑해서 쓴다. 값을 바꿀 땐 DESIGN.md도 같이 갱신.
+ */
+:root {
+  /* ── 바탕 / 면 ───────────────────────────── */
+  --color-bg: #F3F5FA;              /* 앱 바탕. 아주 옅은 블루 기 */
+  --color-surface: #FFFFFF;         /* 카드, 사이드바, 리스트 컨테이너 */
+  --color-surface-subtle: #F6F7FB;  /* 카드 안의 보조 면 (회사 카드 등) */
+  --color-surface-sunken: #E9ECF3;  /* 세그먼트 탭 트랙 */
+  --color-track: #ECEEF3;           /* 타임라인 바 트랙 */
+
+  /* ── 글자 (3단계 + 비활성) ─────────────────── */
+  --color-text: #191C24;            /* 주요. on white 17:1 */
+  --color-text-secondary: #4A5060;  /* 보조. on white 8:1 */
+  --color-text-tertiary: #636979;   /* 흐림. on bg 5.0:1, on white 5.5:1 */
+  --color-text-disabled: #9AA0AE;   /* 장식·아이콘 전용 (본문 글자 금지, 2.6:1) */
+
+  /* ── 테두리 / 그림자 ─────────────────────── */
+  --color-border: rgba(25, 28, 36, 0.06);        /* 카드, 리스트 구분선 */
+  --color-border-strong: rgba(25, 28, 36, 0.08); /* 입력창 */
+  --shadow-sm: 0 1px 2px rgba(25, 28, 36, 0.08); /* 선택된 탭 */
+  --shadow-card: 0 2px 8px rgba(25, 28, 36, 0.05);
+  --shadow-hero: 0 12px 32px rgba(58, 99, 245, 0.18); /* 히어로 카드 전용 */
+
+  /* ── 포인트 색 (하나) ───────────────────── */
+  --color-accent: #2D5BE3;          /* 주요 버튼, 선택, 높은 점수. white on accent 5.7:1 */
+  --color-accent-hover: #1E46C2;
+  --color-accent-soft: #EEF2FF;     /* 선택된 내비, 높은 점수 배지 배경 */
+  --color-accent-soft-2: #E7ECFF;   /* 아바타 배경 */
+  --color-selection: #D9E3FF;       /* ::selection */
+  --color-ink-button: #191C24;      /* 다크 보조 버튼(새 공고 가져오기) */
+
+  /* ── 상태 색 (칩, 점, 바) ─────────────────── */
+  --status-new-bg: #EEF2FF;       --status-new-fg: #2D5BE3;       --status-new-dot: #2D5BE3;
+  --status-triage-bg: #F1F2F6;    --status-triage-fg: #4A5060;    --status-triage-dot: #B8BCC6;
+  --status-drafting-bg: #F1EDFF;  --status-drafting-fg: #5B3FD1;  --status-drafting-dot: #7B5CF6;
+  --status-review-bg: #FFF1E6;    --status-review-fg: #B4480A;    --status-review-dot: #E8590C;
+  --status-submitted-bg: #E8F6EE; --status-submitted-fg: #1F7A4D; --status-submitted-dot: #1F9D63;
+  --status-excluded-bg: #F1F2F6;  --status-excluded-fg: #4A5060;  --status-excluded-dot: #B8BCC6;
+
+  --color-urgent: #E8590C;          /* D-7 이내 타임라인 바·점 */
+  --color-urgent-text: #B4480A;     /* D-7 이내 D-day 글자 */
+  --color-timeline-idle: #C5CAD6;   /* 아직 접수 시작 전 */
+
+  /* ── 점수 배지 ──────────────────────────── */
+  --score-high-bg: #EEF2FF; --score-high-fg: #2D5BE3;  /* 85+ */
+  --score-mid-bg: #F3F4F8;  --score-mid-fg: #3A3F4C;   /* 70–84 */
+  --score-low-bg: #F3F4F8;  --score-low-fg: #636979;   /* 70 미만 */
+
+  /* ── 그라데이션 (화면당 한 곳: 홈 히어로 카드) ── */
+  --gradient-hero: linear-gradient(130deg, #3A63F5 0%, #6A5CF6 55%, #9457D2 100%);
+  --hero-on: #FFFFFF;                       /* 히어로 위 글자: 작은 글자도 100% 흰색 */
+  --hero-chip-bg: rgba(255, 255, 255, 0.18);
+  --hero-track: rgba(255, 255, 255, 0.24);
+  --hero-ghost-border: rgba(255, 255, 255, 0.4);
+  --hero-primary-fg: #2D3FB8;               /* 히어로 안 흰 버튼의 글자 */
+
+  /* ── 타이포 ─────────────────────────────── */
+  --font-sans: Pretendard, "Noto Sans KR", system-ui, -apple-system, sans-serif;
+  /* size / line-height / weight / letter-spacing */
+  --text-display: 56px;  /* 히어로 점수 숫자 · 1 · 800 · -0.04em */
+  --text-h1: 36px;       /* 페이지 헤드라인 · 1.3 · 800 · -0.03em */
+  --text-h2: 28px;       /* 히어로 공고명 · 1.35 · 800 · -0.02em */
+  --text-h3: 20px;       /* 섹션 제목 · 1.4 · 700 */
+  --text-title: 17px;    /* 보조 카드 공고명 · 1.45 · 700 */
+  --text-body-lg: 16px;  /* 리스트 공고명 · 1.45 · 700 */
+  --text-body: 14px;     /* 본문, 내비, 버튼 · 1.6 */
+  --text-meta: 13px;     /* 기관명, 보조 설명 */
+  --text-caption: 12px;  /* 기간, 배지 숫자, 칩 */
+
+  /* ── 간격 (4px 단위) ─────────────────────── */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* ── 라운드 ─────────────────────────────── */
+  --radius-sm: 10px;    /* 로고 마크 */
+  --radius-md: 12px;    /* 내비 아이템 */
+  --radius-lg: 16px;    /* 점수 배지, 회사 카드 */
+  --radius-xl: 24px;    /* 카드, 리스트 컨테이너 */
+  --radius-2xl: 28px;   /* 히어로 카드 */
+  --radius-full: 999px; /* 버튼, 칩, 입력창, 탭 */
+
+  /* ── 움직임 ─────────────────────────────── */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 120ms;   /* 호버 색 변화, 누름 */
+  --dur-base: 200ms;   /* 탭 전환, 패널 */
+  --dur-enter: 320ms;  /* 첫 로드 페이드+8px 올라오기 (한 번만) */
+
+  /* ── 레이아웃 ───────────────────────────── */
+  --sidebar-w: 248px;
+  --content-max: 1100px;
+  --touch-min: 44px;
+}
+
+::selection { background: var(--color-selection); }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }

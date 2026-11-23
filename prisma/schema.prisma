@@ -1,0 +1,85 @@
+// 지원사업 데스크 — Prisma 스키마
+// M0: 인증(Auth.js) + 회사. 공고·매칭·초안 모델은 M1부터 docs/ARCHITECTURE.md 3절 이름 그대로 추가한다.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Auth.js (@auth/prisma-adapter) ─────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ── 회사 (지금은 1개. 확장 여지로 다른 테이블은 companyId를 둔다) ──
+
+enum BizType {
+  corporation // 법인
+  individual // 개인
+}
+
+model Company {
+  id             String    @id @default(cuid())
+  name           String
+  industryLabel  String? // 사이드바 요약용 한 줄 (예: "SW 스타트업")
+  foundedAt      DateTime? // → 업력 자동 계산 (KST)
+  region         String? // 시/도 (예: "부산")
+  ksicCodes      String[]
+  bizType        BizType?
+  certifications String[]
+  headcount      Int?
+  revenueBand    String?
+  ceoBirthYear   Int?
+  description    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
