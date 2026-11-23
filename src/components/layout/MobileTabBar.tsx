@@ -6,14 +6,17 @@ import { NAV_ITEMS, isActive } from "./nav-items";
 
 /** <768: 사이드바 대신 하단 탭바 (홈/공고/보드/프로필) */
 export function MobileTabBar() {
-  const pathname = usePathname();
+  return <MobileTabBarList pathname={usePathname()} />;
+}
+
+export function MobileTabBarList({ pathname }: { pathname: string | null }) {
   return (
     <nav
       aria-label="주 메뉴"
       className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {NAV_ITEMS.filter((i) => i.inTabBar).map(({ href, shortLabel, icon: Icon }) => {
-        const active = isActive(pathname, href);
+        const active = pathname !== null && isActive(pathname, href);
         return (
           <Link
             key={href}

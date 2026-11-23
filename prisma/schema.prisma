@@ -1,5 +1,6 @@
 // 지원사업 데스크 — Prisma 스키마
-// M0: 인증(Auth.js) + 회사. 공고·매칭·초안 모델은 M1부터 docs/ARCHITECTURE.md 3절 이름 그대로 추가한다.
+// M0: 인증 + 회사 / M1: 아이템 카드, 제외 규칙, 공고, 첨부, 소싱 기록
+// 매칭·진행·초안 모델은 M2부터 docs/ARCHITECTURE.md 3절 이름 그대로 추가한다.
 
 generator client {
   provider = "prisma-client"
@@ -79,7 +80,134 @@ model Company {
   headcount      Int?
   revenueBand    String?
   ceoBirthYear   Int?
-  description    String?
+  description    String? // 주력 사업 한 문단
+  itemCards      ItemCard[]
+  exclusionRules ExclusionRule[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// 주력 아이템 (예: ONDECKK). 초안 생성의 핵심 재료. 숫자는 사람이 넣은 것만
+model ItemCard {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name            String
+  problem         String?
+  solution        String?
+  customer        String?
+  differentiation String?
+  traction        String?
+  links           String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+enum ExclusionKind {
+  keyword // 제목·요약에 포함되면 제외
+  region // 이 지역 한정 공고 제외
+  target // 이 대상 전용 공고 제외 (예: 예비창업자)
+  industry // 이 업종 전용 공고 제외 (예: 제조)
+}
+
+model ExclusionRule {
+  id        String        @id @default(cuid())
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind      ExclusionKind
+  value     String
+  note      String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([companyId])
+}
+
+// ── 공고 (소스 무관 정규화) ─────────────────────
+
+enum AnnouncementSource {
+  bizinfo
+  kstartup
+  manual
+  newsletter
+}
+
+model Announcement {
+  id                String             @id @default(cuid())
+  source            AnnouncementSource
+  externalId        String // 소스의 공고 ID. 수동 추가는 정규화한 URL
+  url               String?
+  title             String
+  organization      String? // 소관/주관 기관
+  executingOrg      String? // 수행 기관
+  summary           String? // 본문 요약(태그 제거한 텍스트)
+  target            String? // 지원 대상
+  regionLimit       String? // 지역 제한 (전국이면 null)
+  applyStart        DateTime? // KST 자정을 UTC로 저장
+  applyEnd          DateTime? // KST 마감일 자정(그날 23:59까지 접수로 본다)
+  applyPeriodText   String? // 원문 신청기간 문자열 ("상시" 등 날짜로 못 바꾸는 경우 보존)
+  supportAmountText String?
+  category          String? // 지원 분야
+  hashtags          String[]
+  applyUrl          String? // 신청 페이지
+  raw               Json // 원본 응답 항목
+  contentHash       String // 정규화 필드 해시 → 변경 감지 (M2 재점수 대상)
+  dedupeKey         String // normalize(title)|organization|applyEnd
+  duplicateOfId     String? // 다른 소스의 같은 공고면 대표 공고 id
+  duplicateOf       Announcement?      @relation("Duplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates        Announcement[]     @relation("Duplicate")
+  attachments       Attachment[]
+  firstSeenAt       DateTime           @default(now())
+  lastSeenAt        DateTime           @default(now())
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@unique([source, externalId])
+  @@index([dedupeKey])
+  @@index([applyEnd])
+}
+
+enum AttachmentKind {
+  notice // 공고문
+  form // 신청서·계획서 양식
+  other
+}
+
+enum ParseStatus {
+  pending
+  parsed
+  failed
+}
+
+// 첨부 메타데이터. 실제 다운로드는 M4(진행 결정 시)
+model Attachment {
+  id             String         @id @default(cuid())
+  announcementId String
+  announcement   Announcement   @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  fileName       String
+  url            String
+  fileKey        String?
+  mime           String?
+  kind           AttachmentKind @default(other)
+  parsed         Json?
+  parseStatus    ParseStatus    @default(pending)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([announcementId, url])
+}
+
+model SyncRun {
+  id         String              @id @default(cuid())
+  source     AnnouncementSource
+  startedAt  DateTime            @default(now())
+  finishedAt DateTime?
+  fetched    Int                 @default(0)
+  created    Int                 @default(0)
+  updated    Int                 @default(0)
+  error      String?
+
+  @@index([source, startedAt])
 }

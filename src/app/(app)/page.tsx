@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-import { RotateCw } from "lucide-react";
 import { connection } from "next/server";
 import { PageHeader, PageHeaderSkeleton } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/ui/SearchInput";
-import { Button } from "@/components/ui/Button";
+import { SyncButton } from "@/components/announcements/SyncButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatKstHeaderDate } from "@/lib/kst";
 import { requireUser } from "@/server/session";
@@ -31,11 +30,10 @@ async function HomeContent() {
         title={focusCount > 0 ? `이번 주에 챙길 공고가 ${focusCount}개 있어요` : "이번 주에 챙길 공고가 아직 없어요"}
         actions={
           <>
-            <SearchInput />
-            <Button variant="ink" className="w-full md:w-auto">
-              <RotateCw size={16} strokeWidth={2.2} aria-hidden="true" />
-              새 공고 가져오기
-            </Button>
+            <form action="/announcements" className="w-full md:w-auto">
+              <SearchInput />
+            </form>
+            <SyncButton />
           </>
         }
       />

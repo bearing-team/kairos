@@ -37,7 +37,9 @@ pnpm db:seed          # 회사 1개(베어링(주)) 생성
 pnpm dev              # 개발 서버 http://localhost:3000
 pnpm test             # vitest
 pnpm lint / pnpm typecheck / pnpm build
-pnpm sync             # (M1) 공고 소싱 1회 실행
+pnpm sync [소스]      # 공고 소싱 1회 (bizinfo | kstartup, 생략하면 둘 다). 키 없는 소스는 건너뜀
+pnpm sync:probe       # 실제 API 응답을 fixtures/<소스>/live-YYYYMMDD.json으로 저장 (DB에 안 씀)
+pnpm worker           # pg-boss 워커: 매일 08:00 기업마당, 08:05 K-Startup (KST)
 ```
 
 처음 세팅: `cp .env.example .env` → `AUTH_SECRET`(openssl rand -base64 32) 채우기 → 위 순서대로.
@@ -48,4 +50,13 @@ pnpm sync             # (M1) 공고 소싱 1회 실행
 - 인증: 데이터 접근 전 `src/server/session.ts`의 `requireUser()`. proxy는 낙관적 체크만
 - Tailwind v4: 토큰 매핑은 `src/app/globals.css`의 `@theme inline`. 값 자체는 `design/tokens.css`만 고친다. 기본 스타일은 `@layer base` 안에(밖에 두면 유틸리티를 덮어씀)
 - Prisma 7: 설정은 `prisma.config.ts`, 클라이언트는 `src/generated/prisma`(커밋 안 함), `@prisma/adapter-pg` 사용
-- 상태 표기·색은 `src/lib/status.ts`, KST 날짜 계산은 `src/lib/kst.ts`만 쓴다
+- 상태 표기·색은 `src/lib/status.ts`, KST 날짜 계산은 `src/lib/kst.ts`, D-day·타임라인은 `src/lib/dday.ts`만 쓴다
+- 이 Mac은 Node 20 → vitest는 3.x, pg-boss는 10.x로 고정 (최신은 Node 22 필요)
+- 폼은 `<form action={action} onSubmit={submitWith(action)}>` (`src/components/form/useFormAction.ts`). React 19가 액션 후 폼을 비워 검증 오류 때 입력이 사라지는 걸 막는다
+- `usePathname()` 쓰는 클라이언트 컴포넌트는 Suspense 안에 둔다 (cacheComponents 빌드 오류)
+- 스키마를 바꾸면 dev 서버를 재시작한다 (전역에 남은 이전 Prisma 클라이언트)
+
+## 소싱 (M1)
+- 확인된 API 명세: `docs/sources/bizinfo.md`, `docs/sources/kstartup.md`. "아직 확인 못 한 것"은 실제 응답(`pnpm sync:probe`)으로 확인 후 파서를 좁힌다
+- 흐름: `src/server/sources/{bizinfo,kstartup}.ts`(fetch+파싱) → `upsert.ts`(source+externalId upsert, contentHash 변경 감지, dedupeKey로 소스 간 중복을 `duplicateOfId`로 묶음) → `SyncRun` 기록
+- URL 수동 추가: `fetchPage.ts`(내부망 차단, readability) → `manual.ts`(LLM 구조화, 프롬프트 `src/server/prompts/url-extract.v1.ts`) → 사람이 확인 후 저장. `ANTHROPIC_API_KEY`가 없으면 직접 입력

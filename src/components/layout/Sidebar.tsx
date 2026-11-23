@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { LogoMark } from "./LogoMark";
-import { SidebarNav } from "./SidebarNav";
+import { SidebarNav, SidebarNavList } from "./SidebarNav";
 import { CompanyCard, CompanyCardSkeleton } from "./CompanyCard";
 import { UserMenu } from "./UserMenu";
 
@@ -19,7 +19,9 @@ export function Sidebar() {
         </div>
       </div>
 
-      <SidebarNav />
+      <Suspense fallback={<SidebarNavList pathname={null} />}>
+        <SidebarNav />
+      </Suspense>
 
       <div className="mt-auto hidden flex-col gap-4 xl:flex">
         <Suspense fallback={<CompanyCardSkeleton />}>

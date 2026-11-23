@@ -5,6 +5,7 @@ PRD의 기능을 어떻게 만들지. 1절 스택은 M0(2026-11-23)에서 아래
 > **M0 확정 버전**: Next.js 16.4 (App Router, `cacheComponents` + Partial Prefetching, `src/proxy.ts`) · React 19.3 · Tailwind CSS 4.3 (CSS `@theme`) · Prisma 7.10 (`prisma.config.ts`, `@prisma/adapter-pg`) · PostgreSQL 17 (docker, 호스트 5433) · Auth.js v5 beta (`next-auth@5.0.0-beta.32`, JWT 세션 + Prisma 어댑터) · lucide-react · Pretendard(npm, variable dynamic subset) · vitest.
 > 인증: Google만 + `ALLOWED_EMAIL_DOMAIN` 화이트리스트(`email_verified` 필수, 도메인 미설정이면 전원 거부). 개발 전용 로그인(`AUTH_DEV_LOGIN=1`, production에서는 비활성).
 > Prisma 스키마는 M0에서 Auth.js 테이블 + `Company`만 만들었다. 나머지 모델은 해당 마일스톤에서 3절 이름 그대로 추가한다.
+> **M1 반영**: `ItemCard`, `ExclusionRule`, `Announcement`, `Attachment`, `SyncRun` 추가. `Announcement`에 3절 외 필드 `applyPeriodText`(날짜로 못 바꾸는 원문), `applyUrl`, `contentHash`(변경 감지), `duplicateOfId`(소스 간 중복 묶음), `firstSeenAt` 추가. 날짜는 KST 자정을 UTC로 저장. pg-boss는 Node 20 때문에 10.x, 스키마 `pgboss`. URL 추출 모델은 `LLM_MODEL_EXTRACT`(기본 `claude-opus-5-5`, effort low).
 
 ---
 
@@ -250,6 +251,7 @@ ALLOWED_EMAIL_DOMAIN=
 BIZINFO_API_KEY=
 DATA_GO_KR_SERVICE_KEY=
 ANTHROPIC_API_KEY=
+LLM_MODEL_EXTRACT=
 LLM_MODEL_SCORE=
 LLM_MODEL_DRAFT=
 SLACK_WEBHOOK_URL=

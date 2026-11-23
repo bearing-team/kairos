@@ -1,0 +1,44 @@
+{
+  "currentCount": 2,
+  "data": [
+    {
+      "pbanc_sn": 175000,
+      "biz_pbanc_nm": "2027년 예비창업패키지 예비창업자 모집 공고",
+      "intg_pbanc_yn": "N",
+      "intg_pbanc_biz_nm": "",
+      "pbanc_ctnt": "혁신적인 기술창업 아이디어를 보유한 예비창업자의 사업화를 지원합니다.",
+      "supt_biz_clsfc": "사업화",
+      "aply_trgt": "일반인",
+      "aply_trgt_ctnt": "공고일 기준 사업자 등록이 없는 자",
+      "aply_excl_trgt_ctnt": "",
+      "supt_regin": "전국",
+      "pbanc_rcpt_bgng_dt": "20261120",
+      "pbanc_rcpt_end_dt": "20261208",
+      "rcrt_prgs_yn": "Y",
+      "biz_enyy": "예비창업자",
+      "biz_trgt_age": "",
+      "prfn_matr": "",
+      "pbanc_ntrp_nm": "창업진흥원",
+      "sprv_inst": "중소벤처기업부",
+      "biz_prch_dprt_nm": "예비창업팀",
+      "prch_cnpl_no": "",
+      "biz_gdnc_url": "",
+      "biz_aply_url": "https://www.k-startup.go.kr/sample/175000",
+      "detl_pg_url": "https://www.k-startup.go.kr/sample/apply/175000"
+    },
+    {
+      "pbanc_sn": "175001",
+      "biz_pbanc_nm": "부산 SW기업 성장지원사업",
+      "supt_regin": "부산",
+      "pbanc_rcpt_bgng_dt": "20261117",
+      "pbanc_rcpt_end_dt": "20261128",
+      "pbanc_ntrp_nm": "부산정보산업진흥원",
+      "sprv_inst": "부산정보산업진흥원",
+      "rcrt_prgs_yn": "Y"
+    }
+  ],
+  "matchCount": 2,
+  "page": 1,
+  "perPage": 100,
+  "totalCount": 2
+}

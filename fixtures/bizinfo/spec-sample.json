@@ -1,0 +1,34 @@
+[
+  {
+    "pblancId": "PBLN_000000000080236",
+    "pblancNm": "착한임대인 장관 표창 신청 연장 공고",
+    "pblancUrl": "https://www.bizinfo.go.kr/web/lay1/bbs/S1T122C128/AS/74/view.do?pblancId=PBLN_000000000080236",
+    "jrsdInsttNm": "중소벤처기업부",
+    "excInsttNm": "지방중소벤처기업청",
+    "bsnsSumryCn": "<p>코로나19라는 힘든 상황속에서 소상공인에게 자발적으로 임대료를 인하한 임대인을 &#39;착한임대인&#39;으로 선정하는 사업입니다.</p>",
+    "reqstMthPapersCn": "",
+    "refrncNm": "",
+    "rceptEngnHmpgUrl": "",
+    "pldirSportRealmLclasCodeNm": "경영",
+    "creatPnttm": "2022-09-02 15:38:29",
+    "reqstBeginEndDe": "20220727 ~ 20220930",
+    "trgetNm": "중소기업",
+    "hashTags": "2022,금융,충북,대전,중소벤처기업부",
+    "inqireCo": "43",
+    "flpthNm": "https://www.bizinfo.go.kr/cmm/fms/getImageFile.do?atchFileId=FILE_SAMPLE&fileSn=1",
+    "fileNm": "2022년 대한민국 메이커 스타 참가자모집 공고.pdf",
+    "printFlpthNm": "https://www.bizinfo.go.kr/cmm/fms/getImageFile.do?atchFileId=FILE_SAMPLE&fileSn=0",
+    "printFileNm": "2022년 대한민국 메이커 스타 참가자모집 공고.pdf",
+    "totCnt": "1435"
+  },
+  {
+    "pblancId": "PBLN_SAMPLE_ALWAYS",
+    "pblancNm": "[부산] 상시 모집 샘플 공고",
+    "jrsdInsttNm": "부산광역시",
+    "reqstBeginEndDe": "예산 소진시까지",
+    "trgetNm": "중소기업",
+    "hashTags": "부산, 창업",
+    "pldirSportRealmLclasCodeNm": "창업"
+  },
+  { "pblancId": "", "pblancNm": "ID 없는 항목은 버린다" }
+]
