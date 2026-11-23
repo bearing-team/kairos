@@ -7,12 +7,7 @@ import type { NormalizedAnnouncement } from "./types";
 export const API_SOURCES = ["bizinfo", "kstartup"] as const;
 export type ApiSource = (typeof API_SOURCES)[number];
 
-export const SOURCE_LABEL: Record<string, string> = {
-  bizinfo: "기업마당",
-  kstartup: "K-Startup",
-  manual: "직접 추가",
-  newsletter: "뉴스레터",
-};
+export { SOURCE_LABEL } from "@/lib/sources";
 
 /** 소스별 API 키. 없으면 null → 그 소스는 건너뛴다 */
 export function sourceKey(source: ApiSource): string | null {

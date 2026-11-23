@@ -1,4 +1,4 @@
-import "server-only";
+// server-only를 붙이지 않는다: pnpm sync/score/worker(tsx)에서도 쓴다. 클라이언트 컴포넌트에서 import 금지
 import Anthropic from "@anthropic-ai/sdk";
 
 let client: Anthropic | null = null;

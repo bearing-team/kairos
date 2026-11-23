@@ -1,4 +1,3 @@
-import "server-only";
 import { prisma } from "@/server/db";
 
 /** 지금은 회사 1개. 없으면 만든다 */

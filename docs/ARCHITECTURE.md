@@ -6,6 +6,7 @@ PRD의 기능을 어떻게 만들지. 1절 스택은 M0(2026-11-23)에서 아래
 > 인증: Google만 + `ALLOWED_EMAIL_DOMAIN` 화이트리스트(`email_verified` 필수, 도메인 미설정이면 전원 거부). 개발 전용 로그인(`AUTH_DEV_LOGIN=1`, production에서는 비활성).
 > Prisma 스키마는 M0에서 Auth.js 테이블 + `Company`만 만들었다. 나머지 모델은 해당 마일스톤에서 3절 이름 그대로 추가한다.
 > **M1 반영**: `ItemCard`, `ExclusionRule`, `Announcement`, `Attachment`, `SyncRun` 추가. `Announcement`에 3절 외 필드 `applyPeriodText`(날짜로 못 바꾸는 원문), `applyUrl`, `contentHash`(변경 감지), `duplicateOfId`(소스 간 중복 묶음), `firstSeenAt` 추가. 날짜는 KST 자정을 UTC로 저장. pg-boss는 Node 20 때문에 10.x, 스키마 `pgboss`. URL 추출 모델은 `LLM_MODEL_EXTRACT`(기본 `claude-opus-5-5`, effort low).
+> **M2 반영**: `Match`에 `scoreStatus`(pending|running|scored|failed|skipped), `filterNotes`(통과했지만 확인 못 한 요건), `eligibility`, `scoredHash`(점수 때의 contentHash), `scoreError` 추가. `Application`은 `(announcementId, companyId)`로 `Match`와 1:1로 묶고 `autoExcluded`(하드필터 제외 → 조건이 바뀌면 자동 복귀), `statusChangedAt` 추가. 상태 변경은 `ApplicationEvent`(from, to, reason, userId)에 남긴다(PRD F3.4). 하드필터는 "확실할 때만 제외": 업력은 트랙 중 하나라도 맞으면 통과, 설립일·소재지가 없으면 통과 + 메모. 지역은 지역 필드 → 공고명 `[부산]` → 광역 지자체 이름의 주관 기관 순으로 본다. 점수는 하드필터 통과분만, 한 번에 `SCORE_MAX_PER_RUN`(기본 30)개, 마감 가까운 순. 회사 프로필이 바뀌어도 점수를 자동으로 다시 매기지 않는다(비용) → 상세의 "점수 다시 매기기". 새 공고 → 검토 전은 상세를 실제로 연 때(마운트 후 액션, 프리패치로 바뀌지 않게).
 
 ---
 

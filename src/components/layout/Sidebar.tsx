@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { LogoMark } from "./LogoMark";
-import { SidebarNav, SidebarNavList } from "./SidebarNav";
+import { SidebarNavList } from "./SidebarNav";
+import { SidebarNavWithCounts } from "./SidebarNavWithCounts";
 import { CompanyCard, CompanyCardSkeleton } from "./CompanyCard";
 import { UserMenu } from "./UserMenu";
 
@@ -20,7 +21,7 @@ export function Sidebar() {
       </div>
 
       <Suspense fallback={<SidebarNavList pathname={null} />}>
-        <SidebarNav />
+        <SidebarNavWithCounts />
       </Suspense>
 
       <div className="mt-auto hidden flex-col gap-4 xl:flex">

@@ -2,6 +2,7 @@
 import "dotenv/config";
 import { API_SOURCES, SOURCE_LABEL, syncAll, type ApiSource } from "@/server/sources/sync";
 import { prisma } from "@/server/db";
+import { describeMatch, matchAfterSync } from "@/server/matching/pipeline";
 
 async function main() {
   const arg = process.argv[2] as ApiSource | undefined;
@@ -13,7 +14,11 @@ async function main() {
     else if (r.ok) console.log(`✓ ${label}: ${r.fetched}건 받음 · 새 공고 ${r.created} · 변경 ${r.updated}`);
     else console.log(`✗ ${label}: 실패 — ${r.error}`);
   }
-  if (results.every((r) => !r.ok)) process.exitCode = 1;
+  if (results.every((r) => !r.ok)) {
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`→ ${describeMatch(await matchAfterSync())}`);
 }
 
 main()

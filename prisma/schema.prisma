@@ -14,15 +14,16 @@ datasource db {
 // ── Auth.js (@auth/prisma-adapter) ─────────────────
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String             @id @default(cuid())
+  name              String?
+  email             String?            @unique
+  emailVerified     DateTime?
+  image             String?
+  accounts          Account[]
+  sessions          Session[]
+  applicationEvents ApplicationEvent[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Account {
@@ -69,7 +70,7 @@ enum BizType {
 }
 
 model Company {
-  id             String    @id @default(cuid())
+  id             String          @id @default(cuid())
   name           String
   industryLabel  String? // 사이드바 요약용 한 줄 (예: "SW 스타트업")
   foundedAt      DateTime? // → 업력 자동 계산 (KST)
@@ -83,8 +84,10 @@ model Company {
   description    String? // 주력 사업 한 문단
   itemCards      ItemCard[]
   exclusionRules ExclusionRule[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  matches        Match[]
+  applications   Application[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 // 주력 아이템 (예: ONDECKK). 초안 생성의 핵심 재료. 숫자는 사람이 넣은 것만
@@ -159,6 +162,8 @@ model Announcement {
   duplicateOf       Announcement?      @relation("Duplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
   duplicates        Announcement[]     @relation("Duplicate")
   attachments       Attachment[]
+  matches           Match[]
+  applications      Application[]
   firstSeenAt       DateTime           @default(now())
   lastSeenAt        DateTime           @default(now())
   createdAt         DateTime           @default(now())
@@ -200,14 +205,110 @@ model Attachment {
 }
 
 model SyncRun {
-  id         String              @id @default(cuid())
+  id         String             @id @default(cuid())
   source     AnnouncementSource
-  startedAt  DateTime            @default(now())
+  startedAt  DateTime           @default(now())
   finishedAt DateTime?
-  fetched    Int                 @default(0)
-  created    Int                 @default(0)
-  updated    Int                 @default(0)
+  fetched    Int                @default(0)
+  created    Int                @default(0)
+  updated    Int                @default(0)
   error      String?
 
   @@index([source, startedAt])
+}
+
+// ── M2: 매칭·진행 상태 ───────────────────────────────
+
+enum ScoreStatus {
+  pending // 점수 매길 차례 (LLM 키가 없으면 여기 머문다)
+  running
+  scored
+  failed
+  skipped // 하드필터 탈락 → 점수 안 매김
+}
+
+enum Eligibility {
+  eligible
+  uncertain
+  ineligible
+}
+
+/// 공고 × 회사 매칭 결과 (ARCHITECTURE.md 5절)
+model Match {
+  id                  String       @id @default(cuid())
+  announcementId      String
+  announcement        Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  companyId           String
+  company             Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  hardFilterPassed    Boolean
+  excludeReason       String? // 하드필터 탈락 사유 (사람이 읽는 문장)
+  filterNotes         String[] // 통과했지만 확인이 필요한 점 (예: 설립일 미입력)
+  scoreStatus         ScoreStatus  @default(pending)
+  score               Int? // 0-100
+  reasons             Json? // string[]
+  risks               Json? // string[]
+  eligibility         Eligibility?
+  suggestedItemCardId String?
+  scoredHash          String? // 점수 매길 때의 Announcement.contentHash → 바뀌면 다시 매김
+  model               String?
+  promptVersion       String?
+  scoredAt            DateTime?
+  scoreError          String?
+  application         Application?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([announcementId, companyId])
+  @@index([companyId, scoreStatus])
+}
+
+enum ApplicationStatus {
+  new
+  triage
+  drafting
+  review
+  submitted
+  result_pass
+  result_fail
+  excluded
+}
+
+/// 진행 단위 (상태 파이프라인). 전이는 서버에서만 검증 (src/lib/transitions.ts)
+model Application {
+  id              String             @id @default(cuid())
+  announcementId  String
+  announcement    Announcement       @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  companyId       String
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// 같은 (공고, 회사)의 매칭 결과. refreshMatches가 Match를 먼저 만든다
+  match           Match              @relation(fields: [announcementId, companyId], references: [announcementId, companyId], onDelete: Cascade)
+  status          ApplicationStatus  @default(new)
+  autoExcluded    Boolean            @default(false) // 하드필터가 제외함 (사람 판단은 false) → 조건이 바뀌면 자동 복귀
+  excludedReason  String?
+  ownerId         String?
+  reviewerIds     String[]
+  submittedAt     DateTime?
+  resultNote      String?
+  statusChangedAt DateTime           @default(now())
+  events          ApplicationEvent[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([announcementId, companyId])
+  @@index([companyId, status])
+}
+
+/// 상태 변경 기록 = 사람의 판단 기록 (PRD F3.4). userId 없으면 시스템(하드필터)
+model ApplicationEvent {
+  id            String             @id @default(cuid())
+  applicationId String
+  application   Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  from          ApplicationStatus?
+  to            ApplicationStatus
+  reason        String?
+  userId        String?
+  user          User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt     DateTime           @default(now())
+
+  @@index([applicationId, createdAt])
 }

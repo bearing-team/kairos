@@ -85,7 +85,22 @@
   }
 }
 
+/* 첫 로드에 히어로·카드만 한 번 페이드 + 8px 올라오기 (DESIGN.md 6절) */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.animate-rise {
+  animation: rise var(--dur-enter) var(--ease) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
+
   *,
   *::before,
   *::after {

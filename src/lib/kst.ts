@@ -39,3 +39,15 @@ export function formatYearsInBusiness(foundedAt: Date, now: Date): string {
   const y = yearsInBusiness(foundedAt, now);
   return y < 1 ? "업력 1년 미만" : `업력 ${y}년`;
 }
+
+/** "2026-11-23" (KST 달력 날짜) */
+export function kstDateString(date: Date): string {
+  const { year, month, day } = kstYmd(date);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** 그 시각이 속한 KST 날짜의 00:00 (UTC Date). applyEnd(마감일 KST 자정)가 이보다 작으면 마감 */
+export function kstDayStart(date: Date): Date {
+  const { year, month, day } = kstYmd(date);
+  return new Date(Date.UTC(year, month - 1, day) - 9 * 3600e3);
+}

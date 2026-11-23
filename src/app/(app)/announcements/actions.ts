@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { refreshMatches, scorePending } from "@/server/matching/run";
+import { llmConfigured } from "@/server/llm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/server/session";
@@ -18,9 +21,12 @@ export type SyncState = { ok: boolean; message: string } | null;
 export async function runSyncNow(_prev: SyncState): Promise<SyncState> {
   await requireUser();
   const results = await syncAll();
-  revalidatePath("/", "layout");
   const ran = results.filter((r) => !r.skipped);
   if (ran.length === 0) return { ok: false, message: "API 키가 없어 가져올 수 있는 소스가 없어요" };
+  // 규칙 검사는 바로, LLM 점수는 응답을 보낸 뒤 뒤에서 (SCORE_MAX_PER_RUN개씩)
+  const refresh = await refreshMatches();
+  if (refresh.toScore && llmConfigured()) after(() => scorePending().catch((e) => console.error("[score]", e)));
+  revalidatePath("/", "layout");
   const created = ran.reduce((n, r) => n + r.created, 0);
   const failed = ran.filter((r) => !r.ok).map((r) => SOURCE_LABEL[r.source]);
   if (failed.length === ran.length) return { ok: false, message: `${failed.join(", ")} 불러오기에 실패했어요` };
@@ -112,7 +118,7 @@ export async function saveManualAnnouncement(_prev: SaveState, fd: FormData): Pr
     })
     .filter((a) => /^https?:\/\//.test(a.url));
 
-  await upsertAnnouncements([
+  const saved = await upsertAnnouncements([
     {
       source: "manual",
       externalId: url,
@@ -134,6 +140,11 @@ export async function saveManualAnnouncement(_prev: SaveState, fd: FormData): Pr
       raw: { addedFrom: url },
     },
   ]);
-  revalidatePath("/announcements");
-  redirect("/announcements?source=manual");
+  const newId = saved.createdIds[0];
+  if (newId) {
+    await refreshMatches({ announcementIds: [newId] });
+    if (llmConfigured()) after(() => scorePending().catch((e) => console.error("[score]", e)));
+  }
+  revalidatePath("/", "layout");
+  redirect(newId ? `/announcements/${newId}` : "/announcements?source=manual");
 }

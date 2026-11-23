@@ -39,7 +39,8 @@ pnpm test             # vitest
 pnpm lint / pnpm typecheck / pnpm build
 pnpm sync [소스]      # 공고 소싱 1회 (bizinfo | kstartup, 생략하면 둘 다). 키 없는 소스는 건너뜀
 pnpm sync:probe       # 실제 API 응답을 fixtures/<소스>/live-YYYYMMDD.json으로 저장 (DB에 안 씀)
-pnpm worker           # pg-boss 워커: 매일 08:00 기업마당, 08:05 K-Startup (KST)
+pnpm worker           # pg-boss 워커: 매일 08:00 기업마당, 08:05 K-Startup, 평일 매시 30분 점수 대기분 (KST)
+pnpm score [개수|all] # 하드필터 다시 + 점수 대기 공고 LLM 점수 (기본 SCORE_MAX_PER_RUN=30)
 ```
 
 처음 세팅: `cp .env.example .env` → `AUTH_SECRET`(openssl rand -base64 32) 채우기 → 위 순서대로.
@@ -60,3 +61,10 @@ pnpm worker           # pg-boss 워커: 매일 08:00 기업마당, 08:05 K-Start
 - 확인된 API 명세: `docs/sources/bizinfo.md`, `docs/sources/kstartup.md`. "아직 확인 못 한 것"은 실제 응답(`pnpm sync:probe`)으로 확인 후 파서를 좁힌다
 - 흐름: `src/server/sources/{bizinfo,kstartup}.ts`(fetch+파싱) → `upsert.ts`(source+externalId upsert, contentHash 변경 감지, dedupeKey로 소스 간 중복을 `duplicateOfId`로 묶음) → `SyncRun` 기록
 - URL 수동 추가: `fetchPage.ts`(내부망 차단, readability) → `manual.ts`(LLM 구조화, 프롬프트 `src/server/prompts/url-extract.v1.ts`) → 사람이 확인 후 저장. `ANTHROPIC_API_KEY`가 없으면 직접 입력
+
+## 매칭 (M2)
+- 흐름: 소싱 → `src/server/matching/run.ts`의 `refreshMatches()`(하드필터 `hardFilter.ts`, LLM 없음) → `scorePending()`(LLM, 프롬프트 `src/server/prompts/score.v1.ts`). 프롬프트를 고치면 새 버전 파일을 만들고 `promptVersion`이 바뀌게 한다
+- 하드필터는 확실할 때만 제외한다. 애매하면 통과 + `filterNotes`(→ LLM 입력, 상세의 "확인 필요")
+- 상태 전이는 `src/lib/transitions.ts`로 서버에서만 검증, 변경은 `setStatus()`로 해서 `ApplicationEvent`가 남게 한다. 사람이 정한 상태는 하드필터가 덮어쓰지 않는다(`autoExcluded`만 자동 복귀)
+- 회사 프로필·제외 규칙 저장 → `refreshMatches()` 바로. 소싱·URL 추가 → 규칙 검사 바로, 점수는 `after()`로 응답 뒤에
+- `src/server/{llm,company,matching/*}.ts`는 tsx 스크립트에서도 쓰므로 `server-only`를 붙이지 않는다

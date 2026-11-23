@@ -9,14 +9,16 @@ import { buttonClass } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AnnouncementRow } from "@/components/announcements/AnnouncementRow";
 import { SyncButton } from "@/components/announcements/SyncButton";
-import { listAnnouncements, syncStatus } from "@/server/announcements";
+import { LIST_STATUS, listAnnouncements, syncStatus, type ListStatus } from "@/server/announcements";
 import { SOURCE_LABEL } from "@/server/sources/sync";
 import { formatKstRelative } from "@/lib/format";
 import { requireUser } from "@/server/session";
 import type { AnnouncementSource } from "@/generated/prisma/client";
 
-type SP = { q?: string; source?: string; sort?: string; closed?: string; page?: string };
+type SP = { q?: string; source?: string; status?: string; sort?: string; closed?: string; page?: string };
 const SOURCES: AnnouncementSource[] = ["bizinfo", "kstartup", "manual"];
+const STATUS_TABS: [ListStatus, string][] = [["new", "새 공고"], ["progress", "진행 중"], ["done", "제출·결과"], ["excluded", "제외"]];
+const SORTS: ["score" | "deadline" | "recent", string][] = [["score", "적합도순"], ["deadline", "마감 임박순"], ["recent", "최근 등록순"]];
 
 export default function AnnouncementsPage({ searchParams }: { searchParams: Promise<SP> }) {
   return (
@@ -38,25 +40,27 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
   await requireUser();
   const sp = await searchParams;
   const source = SOURCES.includes(sp.source as AnnouncementSource) ? (sp.source as AnnouncementSource) : undefined;
-  const sort = sp.sort === "recent" ? "recent" : "deadline";
+  const sort = sp.sort === "recent" || sp.sort === "deadline" ? sp.sort : "score";
+  const status = sp.status && sp.status in LIST_STATUS ? (sp.status as ListStatus) : undefined;
   const includeClosed = sp.closed === "1";
   const now = new Date();
 
-  const [{ items, total, counts, all, page, pages }, status] = await Promise.all([
-    listAnnouncements({ q: sp.q, source, sort, includeClosed, page: Number(sp.page) || 1 }, now),
+  const [{ items, total, counts, all, page, pages }, sync] = await Promise.all([
+    listAnnouncements({ q: sp.q, source, status, sort, includeClosed, page: Number(sp.page) || 1 }, now),
     syncStatus(),
   ]);
 
   return (
     <>
       <PageHeader
-        eyebrow={status.lastSuccessAt ? `${formatKstRelative(status.lastSuccessAt, now)}에 가져왔어요` : "아직 공고를 가져온 적이 없어요"}
+        eyebrow={sync.lastSuccessAt ? `${formatKstRelative(sync.lastSuccessAt, now)}에 가져왔어요` : "아직 공고를 가져온 적이 없어요"}
         title={`공고 ${all.toLocaleString("ko-KR")}건`}
         actions={
           <>
             <form action="/announcements" className="w-full md:w-auto">
               {source ? <input type="hidden" name="source" value={source} /> : null}
-              {sort === "recent" ? <input type="hidden" name="sort" value="recent" /> : null}
+              {status ? <input type="hidden" name="status" value={status} /> : null}
+              {sort !== "score" ? <input type="hidden" name="sort" value={sort} /> : null}
               <SearchInput defaultValue={sp.q} />
             </form>
             <Link href="/announcements/new" className={buttonClass("soft", "md", "w-full md:w-auto")}>
@@ -68,10 +72,10 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
         }
       />
 
-      {status.failing.length ? (
+      {sync.failing.length ? (
         <div role="alert" className="flex items-center gap-2 rounded-lg bg-[var(--status-review-bg)] px-4 py-3 text-[13px] text-urgent-text">
           <AlertCircle size={16} strokeWidth={2} aria-hidden="true" />
-          {status.failing.map((s) => SOURCE_LABEL[s]).join(", ")} 불러오기에 실패했어요 · 다시 시도하려면 새 공고 가져오기를 눌러 주세요
+          {sync.failing.map((s) => SOURCE_LABEL[s]).join(", ")} 불러오기에 실패했어요 · 다시 시도하려면 새 공고 가져오기를 눌러 주세요
         </div>
       ) : null}
 
@@ -84,10 +88,30 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
             ...SOURCES.map((s) => ({ key: s, label: `${SOURCE_LABEL[s]} ${counts[s] ?? 0}`, href: href(sp, { source: s, page: undefined }) })),
           ]}
         />
-        <div className="flex items-center gap-4 text-[13px] font-semibold">
-          <Link href={href(sp, { sort: sort === "recent" ? undefined : "recent", page: undefined })} className="text-ink-2 hover:text-ink">
-            {sort === "recent" ? "최근 등록순" : "마감 임박순"}으로 보는 중 · 바꾸기
-          </Link>
+        <LinkTabs
+          label="상태"
+          current={status ?? "all"}
+          items={[
+            { key: "all", label: "모든 상태", href: href(sp, { status: undefined, page: undefined }) },
+            ...STATUS_TABS.map(([k, label]) => ({ key: k, label, href: href(sp, { status: k, page: undefined }) })),
+          ]}
+        />
+      </div>
+
+      <div className="-mt-4 flex flex-wrap items-center justify-between gap-3 text-[13px] font-semibold">
+        <nav aria-label="정렬" className="flex items-center gap-3">
+          {SORTS.map(([k, label]) => (
+            <Link
+              key={k}
+              href={href(sp, { sort: k === "score" ? undefined : k, page: undefined })}
+              aria-current={sort === k ? "true" : undefined}
+              className={sort === k ? "text-ink" : "text-ink-3 hover:text-ink-2"}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+        <div className="flex items-center gap-4">
           <Link href={href(sp, { closed: includeClosed ? undefined : "1", page: undefined })} className="text-accent hover:text-accent-hover">
             {includeClosed ? "마감 공고 숨기기" : "마감 공고도 보기"}
           </Link>
@@ -107,11 +131,7 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
         <section aria-label="공고 목록" className="overflow-hidden rounded-xl border border-line bg-surface">
           <ul className="m-0 list-none p-0">
             {items.map((a) => (
-              <AnnouncementRow
-                key={a.id}
-                now={now}
-                a={{ ...a, sourceLabel: SOURCE_LABEL[a.source], alsoIn: a._count.duplicates }}
-              />
+              <AnnouncementRow key={a.id} now={now} r={a} />
             ))}
           </ul>
         </section>

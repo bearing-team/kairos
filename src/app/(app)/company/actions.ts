@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { refreshMatches, type RefreshResult } from "@/server/matching/run";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/server/db";
@@ -70,8 +71,9 @@ export async function saveCompany(_prev: FormState, fd: FormData): Promise<FormS
   if (!parsed.success) return { ok: false, message: "입력값을 확인해 주세요", errors: toErrors(parsed.error) };
   const company = await getCompany();
   await prisma.company.update({ where: { id: company.id }, data: parsed.data });
+  const r = await refreshMatches(); // 설립일·소재지가 바뀌면 하드필터 결과도 바뀐다
   revalidatePath("/", "layout");
-  return { ok: true, message: "저장했어요" };
+  return { ok: true, message: `저장했어요${refreshNote(r)}` };
 }
 
 // ── 아이템 카드 ───────────────────────────
@@ -122,13 +124,20 @@ export async function addExclusionRule(_prev: FormState, fd: FormData): Promise<
   if (!parsed.success) return { ok: false, message: "입력값을 확인해 주세요", errors: toErrors(parsed.error) };
   const company = await getCompany();
   await prisma.exclusionRule.create({ data: { ...parsed.data, companyId: company.id } });
-  revalidatePath("/company");
-  return { ok: true, message: "규칙을 추가했어요" };
+  const r = await refreshMatches();
+  revalidatePath("/", "layout");
+  return { ok: true, message: `규칙을 추가했어요${refreshNote(r)}` };
 }
 
 export async function deleteExclusionRule(id: string) {
   await requireUser();
   const company = await getCompany();
   await prisma.exclusionRule.delete({ where: { id, companyId: company.id } });
-  revalidatePath("/company");
+  await refreshMatches();
+  revalidatePath("/", "layout");
+}
+
+function refreshNote(r: RefreshResult) {
+  const parts = [r.excluded ? `${r.excluded}건 새로 제외` : null, r.restored ? `${r.restored}건 다시 추천` : null].filter(Boolean);
+  return parts.length ? ` · 공고 ${parts.join(", ")}` : "";
 }

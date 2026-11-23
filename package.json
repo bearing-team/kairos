@@ -16,7 +16,8 @@
     "postinstall": "prisma generate",
     "sync": "tsx scripts/sync.ts",
     "sync:probe": "tsx scripts/probe.ts",
-    "worker": "tsx worker.ts"
+    "worker": "tsx worker.ts",
+    "score": "tsx scripts/score.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",
