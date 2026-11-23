@@ -9,6 +9,8 @@ export async function getDraftPage(applicationId: string, version?: number) {
     select: {
       id: true,
       status: true,
+      ownerId: true,
+      reviewerIds: true,
       announcement: {
         select: {
           id: true,
@@ -30,7 +32,15 @@ export async function getDraftPage(applicationId: string, version?: number) {
     ? await prisma.draft.findUnique({
         where: { id: pick.id },
         include: {
-          sections: { orderBy: { order: "asc" } },
+          sections: {
+            orderBy: { order: "asc" },
+            include: {
+              comments: {
+                orderBy: { createdAt: "asc" },
+                include: { author: { select: { id: true, name: true, email: true } }, resolvedBy: { select: { name: true, email: true } } },
+              },
+            },
+          },
           formAttachment: { select: { fileName: true } },
           createdBy: { select: { name: true, email: true } },
         },
@@ -41,7 +51,8 @@ export async function getDraftPage(applicationId: string, version?: number) {
   // 서버가 중간에 꺼져 멈춘 작업은 실패로 보여준다
   const sections = draft?.sections.map((s) => (s.status === "generating" && stale(s.updatedAt) ? { ...s, status: "failed" as const, error: "중간에 멈췄어요. 다시 써 주세요" } : s));
   const draftStatus = draft && (draft.status === "preparing" || draft.status === "generating") && stale(draft.updatedAt) && !sections?.some((s) => s.status === "generating") ? "failed" : draft?.status;
-  return { app, draft: draft ? { ...draft, status: draftStatus!, sections: sections! } : null };
+  const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true } });
+  return { app, users, draft: draft ? { ...draft, status: draftStatus!, sections: sections! } : null };
 }
 
 /** 상세·홈에서 쓰는 초안 진행 (최신 버전) */

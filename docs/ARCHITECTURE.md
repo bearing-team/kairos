@@ -200,7 +200,16 @@ SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, up
    - 출력 JSON `{ content, needsCheck[] }` → `needsCheck`는 본문에서 찾은 표시와 합친다(`lib/needsCheck.ts`)
    - 사람이 고치면 `generatedBy=human`, 확인 필요는 본문에서 다시 센다. 섹션별 다시 쓰기(다시/더 구체적으로/짧게/평가 기준 반영)
 6. 15분 넘게 preparing·generating이면 멈춘 것으로 보고 다시 만들 수 있다
-7. 아직 안 한 것: 원본 양식에 채워 내보내기(F4.6), 문서 라이브러리 검색(RAG), 리뷰 코멘트, 내보내기(DOCX/PDF/MD)
+7. 아직 안 한 것: 원본 양식에 채워 내보내기(F4.6), 문서 라이브러리 검색(RAG)
+
+### 6.1 보드·리뷰·내보내기 (M5)
+- **상태 바꾸기는 한 곳**: `src/server/applications.ts`의 `transition()` — 전이 검사(`lib/transitions.ts`) → `setStatus()` → 부수 효과. 상태 버튼(`changeStatus`), 보드 드래그(`moveCard`, `expectFrom`으로 동시 변경 방지), "초안 만들기"가 모두 이걸 쓴다
+  - `drafting`으로: 담당자가 비어 있으면 바꾼 사람, 초안이 없으면 `ensureDraft()` + `after(runDraft)`
+  - `drafting → review`: `after(sendReviewRequest)` (Slack, 아래)
+- 보드 `/board` (`server/board.ts`, `components/board/BoardView.tsx`): 추천됨(신규·검토) / 초안 작성 / 리뷰 / 제출 완료. HTML5 드래그 → 낙관적 이동, 서버가 거절하면 원위치 + 토스트. 드래그 못 하는 사람용으로 카드마다 "옮기기" 메뉴. 놓을 수 없는 열은 드래그 중 표시 안 함
+- 리뷰 코멘트 `ReviewComment`(섹션 단위, 해결/다시 열기, 본인 것만 삭제). 리뷰어는 `Application.reviewers`, 초안 화면 오른쪽에서 지정
+- 버전: 섹션마다 생성 시점 본문을 `DraftSection.aiContent`로 남겨 "AI 초안과 비교"(줄 단위 LCS, `lib/diff.ts`). 초안 전체 버전은 M4의 `Draft.version`(다시 만들면 새 버전)
+- 내보내기 (`server/export/`): DOCX(`docx` 패키지, 맑은 고딕, `【확인 필요】`는 노란 형광, "- " 줄은 글머리), MD, PDF는 인쇄용 페이지 `/print/drafts/[id]` → 브라우저 "PDF로 저장"(서버에 Chromium 두지 않음). 확인 필요가 남아 있으면 메뉴에서 알려 준다
 
 ## 7. 알림
 - Slack Incoming Webhook (env `SLACK_WEBHOOK_URL`)
@@ -213,7 +222,7 @@ SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, up
   전체 보기: <앱 홈 URL>
   ```
 - 마감 알림: 진행 중 공고 D-7/D-3/D-1, 하루 1회
-- **M3 반영**: 진행 중 = 초안 작성 중·리뷰 중. 구간마다 한 번(`DeadlineAlert @@unique([applicationId, bucket])`), 놓친 날은 다음 구간으로. 다이제스트 대상은 홈 "이번 주에 챙길 공고"와 같은 조건이고, 접수 시작 전이면 "12.19 마감 · 12.01 접수 시작". 발송 기록은 `Notification`(성공 시에만 `dedupeKey`). 링크는 원문 공고, 없으면 앱 상세(`APP_BASE_URL`). 리뷰 요청 알림(F6.3)은 리뷰어 지정과 함께 M5에서
+- **M3 반영**: 진행 중 = 초안 작성 중·리뷰 중. 구간마다 한 번(`DeadlineAlert @@unique([applicationId, bucket])`), 놓친 날은 다음 구간으로. 다이제스트 대상은 홈 "이번 주에 챙길 공고"와 같은 조건이고, 접수 시작 전이면 "12.19 마감 · 12.01 접수 시작". 발송 기록은 `Notification`(성공 시에만 `dedupeKey`). 링크는 원문 공고, 없으면 앱 상세(`APP_BASE_URL`). 리뷰 요청 알림(F6.3)은 M5에서: 리뷰 중으로 바뀔 때 1회, 리뷰어·섹션 수·확인 필요 개수와 초안 화면 링크 (`Notification.kind=review`)
 
 ## 8. 디렉토리 구조 (제안)
 

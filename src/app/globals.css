@@ -114,5 +114,5 @@
 
 /* 반응형 기준 (DESIGN.md 7절): md 768 / xl 1200 */
 @theme {
-  --breakpoint-xl: 1200px;
+  --breakpoint-xl: 75rem; /* 1200px. 기본 sm·md(rem)와 단위를 맞춰야 순서가 맞다 */
 }

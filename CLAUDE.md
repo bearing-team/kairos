@@ -87,3 +87,11 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 - `src/server/drafting/*`, `src/server/docs/*`는 tsx 스크립트에서도 쓰므로 `server-only`를 붙이지 않는다 (`src/server/drafts.ts`는 화면 전용)
 - LLM 없이 화면 확인: 가짜 Anthropic 서버를 띄우고 `.env`에 `ANTHROPIC_BASE_URL=http://127.0.0.1:<port>` + 아무 키. 끝나면 되돌린다
 
+## 보드·리뷰·내보내기 (M5)
+- 상태 변경은 전부 `src/server/applications.ts`의 `transition()`으로 (초안 자동 생성·리뷰 요청 Slack 같은 부수 효과가 여기 한 곳에)
+- 보드 `/board`: `src/server/board.ts` + `components/board/BoardView.tsx`(드래그 + "옮기기" 메뉴, 서버 거절 시 원위치). 자동화 도구의 마우스 드래그로는 HTML5 DnD가 안 되니 확인은 JS로 `DragEvent`+`DataTransfer`를 보낸다
+- 코멘트 `ReviewComment`(섹션 단위), 리뷰어 `Application.reviewers`, AI 원본 `DraftSection.aiContent` → "AI 초안과 비교"(`src/lib/diff.ts`)
+- 내보내기 `src/server/export/`: DOCX(`docx`)·MD는 `/api/drafts/[id]/export?format=`, PDF는 `/print/drafts/[id]`에서 브라우저 인쇄
+- `<details>` 팝오버는 `src/components/ui/useDismiss.ts`로 바깥 클릭·Esc 닫기
+- "로/으로"는 `withRo()` (`src/lib/format.ts`)
+- Tailwind 브레이크포인트는 **rem으로만** (`--breakpoint-xl: 75rem`, 임의 값도 `min-[87.5rem]:`). px로 쓰면 sm/md(rem)보다 앞에 정렬돼 덮어써진다

@@ -1,20 +1,51 @@
 import { Suspense } from "react";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { connection } from "next/server";
+import { PageHeaderSkeleton } from "@/components/layout/PageHeader";
+import { BoardView } from "@/components/board/BoardView";
 import { requireUser } from "@/server/session";
+import { BOARD_COLUMNS, getBoard } from "@/server/board";
+import { formatKstHeaderDate, kstYmd } from "@/lib/kst";
 
 export default function Page() {
   return (
-    <>
-      <PageHeader title="초안·리뷰" />
-      <Suspense fallback={null}>
-        <Content />
-      </Suspense>
-    </>
+    <Suspense fallback={<PageHeaderSkeleton />}>
+      <Board />
+    </Suspense>
   );
 }
 
-async function Content() {
+async function Board() {
+  await connection();
   await requireUser();
-  return <EmptyState title="아직 준비 중인 화면이에요" description="다음 단계에서 이 화면을 채울게요." />;
+  const now = new Date();
+  const b = await getBoard(now);
+  const until = b.headline ? kstYmd(b.headline.until) : null;
+  const title = b.headline && until ? `${until.month}월 ${until.day}일까지\n제출할 공고 ${b.headline.count}건` : b.inProgress ? `진행 중인 공고 ${b.inProgress}건` : "진행 중인 공고가 없어요";
+
+  return (
+    <>
+      <header className="flex flex-wrap items-end justify-between gap-6">
+        <div className="flex max-w-[720px] flex-col gap-3">
+          <span className="text-[15px] font-semibold text-ink-2">{formatKstHeaderDate(now)}</span>
+          <h1 className="m-0 text-[34px] leading-[1.2] font-extrabold tracking-[-0.04em] whitespace-pre-line md:text-[44px]">{title}</h1>
+        </div>
+        <dl className="m-0 flex flex-wrap gap-3">
+          {[
+            ["이번 달 제출", b.submittedThisMonth],
+            ["리뷰 대기", b.reviewWaiting],
+          ].map(([k, v]) => (
+            <div key={k} className="flex min-w-[120px] flex-col gap-1 rounded-[20px] border border-line bg-surface px-5 py-4">
+              <dt className="text-[13px] text-ink-2">{k}</dt>
+              <dd className="m-0 text-[26px] font-extrabold">
+                {v}
+                <span className="text-[15px] font-semibold text-ink-2">건</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </header>
+      <p className="-mt-4 m-0 text-[13px] text-ink-3">카드를 끌어서 다른 열에 놓거나, 카드의 옮기기 버튼으로 상태를 바꿀 수 있어요.</p>
+      <BoardView columns={BOARD_COLUMNS} initial={b.columns} recommendedMore={b.recommendedMore} />
+    </>
+  );
 }

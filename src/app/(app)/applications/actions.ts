@@ -1,15 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { withRo } from "@/lib/format";
 import { redirect } from "next/navigation";
-import { after } from "next/server";
-import { ensureDraft, runDraft } from "@/server/drafting/run";
+import { transition } from "@/server/applications";
 import { z } from "zod";
 import { requireUser } from "@/server/session";
 import { prisma } from "@/server/db";
 import { setStatus, scorePending } from "@/server/matching/run";
 import { llmConfigured } from "@/server/llm";
-import { checkTransition } from "@/lib/transitions";
 import { APPLICATION_STATUSES, STATUS_STYLE } from "@/lib/status";
 
 export type ActionState = { ok: boolean; message: string } | null;
@@ -31,24 +30,11 @@ export async function changeStatus(applicationId: string, _prev: ActionState, fd
   if (!parsed.success) return { ok: false, message: "요청이 올바르지 않아요" };
   const { to, reason, redirectTo } = parsed.data;
 
-  const app = await prisma.application.findUnique({ where: { id: applicationId }, select: { status: true } });
-  if (!app) return { ok: false, message: "공고를 찾지 못했어요" };
-  const check = checkTransition(app.status, to, reason);
-  if (!check.ok) return { ok: false, message: check.error };
-
-  try {
-    await setStatus(applicationId, app.status, to, { reason: reason ?? null, userId: user.id });
-  } catch {
-    return { ok: false, message: "그 사이 다른 사람이 상태를 바꿨어요. 새로고침해 주세요" };
-  }
-  // 진행 결정 → 첨부 받기·초안 쓰기는 응답 뒤에 (ARCHITECTURE.md 6절)
-  if (to === "drafting") {
-    const draftId = await ensureDraft(applicationId, user.id);
-    if (draftId) after(() => runDraft(draftId).catch((e) => console.error("[draft]", e)));
-  }
+  const r = await transition(applicationId, to, { userId: user.id, reason: reason ?? null });
+  if (!r.ok) return { ok: false, message: r.message };
   revalidatePath("/", "layout");
   if (redirectTo) redirect(redirectTo);
-  return { ok: true, message: `${STATUS_STYLE[to].label}(으)로 바꿨어요` };
+  return { ok: true, message: `${withRo(STATUS_STYLE[to].label)} 바꿨어요` };
 }
 
 /** 상세를 처음 연 사람이 있으면 새 공고 → 검토 전 (PRD 상태 정의) */
@@ -73,4 +59,15 @@ export async function rescore(matchId: string, _prev: ActionState): Promise<Acti
   if (r.scored) return { ok: true, message: "점수를 다시 매겼어요" };
   const m = await prisma.match.findUnique({ where: { id: matchId }, select: { scoreError: true } });
   return { ok: false, message: m?.scoreError ?? "점수를 매기지 못했어요" };
+}
+
+/** 보드 드래그로 옮기기. expectFrom이 다르면(그 사이 바뀜) 실패 → 원위치 */
+export async function moveCard(applicationId: string, from: string, to: string): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = z.object({ from: z.enum(APPLICATION_STATUSES), to: z.enum(APPLICATION_STATUSES) }).safeParse({ from, to });
+  if (!parsed.success) return { ok: false, message: "요청이 올바르지 않아요" };
+  const r = await transition(applicationId, parsed.data.to, { userId: user.id, expectFrom: parsed.data.from });
+  if (!r.ok) return { ok: false, message: r.message };
+  revalidatePath("/", "layout");
+  return { ok: true, message: `${withRo(STATUS_STYLE[parsed.data.to].label)} 옮겼어요` };
 }

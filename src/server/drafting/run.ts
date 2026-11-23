@@ -206,7 +206,7 @@ export async function generateSections(draftId: string, opts: { sectionIds?: str
         const content = out!.content.trim();
         await prisma.draftSection.update({
           where: { id: s.id },
-          data: { content, needsCheck: mergeChecks(content, out!.needsCheck), status: "done", generatedBy: "ai", model, promptVersion: DRAFT_SECTION_PROMPT_VERSION, error: null },
+          data: { content, aiContent: content, needsCheck: mergeChecks(content, out!.needsCheck), status: "done", generatedBy: "ai", model, promptVersion: DRAFT_SECTION_PROMPT_VERSION, error: null },
         });
         done++;
       } catch (e) {

@@ -16,6 +16,9 @@ import { requireUser } from "@/server/session";
 import { getDraftPage } from "@/server/drafts";
 import { llmConfigured } from "@/server/llm";
 import { TEMPLATE_LABEL, type TemplateType } from "@/server/drafting/templates";
+import { ReviewerPicker } from "@/components/draft/ReviewerPicker";
+import { ExportMenu } from "@/components/draft/ExportMenu";
+import type { CommentView } from "@/components/draft/CommentThread";
 
 export default function DraftPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string }> }) {
   return (
@@ -29,12 +32,12 @@ const KIND = { notice: "공고문", form: "양식", other: "첨부" } as const;
 
 async function Draft({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string }> }) {
   await connection();
-  await requireUser();
+  const me = await requireUser();
   const { id } = await params;
   const { v } = await searchParams;
   const data = await getDraftPage(id, v ? Number(v) || undefined : undefined);
   if (!data) notFound();
-  const { app, draft } = data;
+  const { app, draft, users } = data;
   const a = app.announcement;
   const llm = llmConfigured();
   const now = new Date();
@@ -43,6 +46,16 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
   const done = sections.filter((s) => s.status === "done").length;
   const checks = sections.reduce((n, s) => n + s.needsCheck.length, 0);
   const working = !!draft && (draft.status === "preparing" || draft.status === "generating" || sections.some((s) => s.status === "generating"));
+  const who = (u: { name: string | null; email: string | null } | null) => u?.name ?? u?.email ?? "팀원";
+  const commentsOf = (sec: (typeof sections)[number]): CommentView[] =>
+    sec.comments.map((c) => ({
+      id: c.id,
+      body: c.body,
+      when: formatKstRelative(c.createdAt, now),
+      author: c.author,
+      resolved: c.resolvedAt ? { by: who(c.resolvedBy), when: formatKstRelative(c.resolvedAt, now) } : null,
+    }));
+  const openComments = sections.flatMap((sec) => sec.comments.filter((c) => !c.resolvedAt).map((c) => ({ sec, c })));
   const missing = sections.filter((s) => s.status === "empty" || s.status === "failed").length;
   const source = draft?.templateSource?.startsWith("default:") ? `기본 템플릿(${TEMPLATE_LABEL[draft.templateSource.slice(8) as TemplateType] ?? "기본"})` : draft?.formAttachment ? `양식 ‘${draft.formAttachment.fileName}’` : null;
 
@@ -71,12 +84,15 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
                 {done}/{sections.length} 섹션 완료
               </span>
               {checks ? <span className="rounded-full bg-check-bg px-2.5 py-1 font-semibold text-check-fg">확인 필요 {checks}곳</span> : null}
+              {openComments.length ? <span className="rounded-full bg-[var(--status-review-bg)] px-2.5 py-1 font-semibold text-[var(--status-review-fg)]">열린 코멘트 {openComments.length}개</span> : null}
             </div>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {draft && !working ? <StartDraftButton applicationId={app.id} label="초안 새로 만들기" className={buttonClass("soft", "md")} /> : null}
-          {app.status === "drafting" && draft ? <StatusButton applicationId={app.id} to="review" label="리뷰 요청하기" className={buttonClass("primary", "md")} /> : null}
+          {draft && sections.length ? <ExportMenu draftId={draft.id} checks={checks} /> : null}
+          {app.status === "drafting" && draft ? <StatusButton applicationId={app.id} to="review" label="리뷰 요청하기" pendingLabel="요청하는 중" className={buttonClass("primary", "md")} /> : null}
+          {app.status === "review" ? <StatusButton applicationId={app.id} to="submitted" label="제출 완료로 표시" className={buttonClass("primary", "md")} /> : null}
         </div>
       </header>
 
@@ -90,10 +106,10 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
           <StartDraftButton applicationId={app.id} label="초안 만들기" className={buttonClass("primary", "lg")} />
         </section>
       ) : (
-        <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start min-[1400px]:grid-cols-[180px_minmax(0,1fr)_300px]">
+        <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start min-[87.5rem]:grid-cols-[180px_minmax(0,1fr)_300px]">
           {/* 왼쪽: 섹션 목차 (넓은 화면만) */}
           {sections.length ? (
-            <nav aria-label="섹션 목차" className="sticky top-10 hidden flex-col gap-1 min-[1400px]:flex">
+            <nav aria-label="섹션 목차" className="sticky top-10 hidden flex-col gap-1 min-[87.5rem]:flex">
               {sections.map((s) => (
                 <a key={s.id} href={`#sec-${s.order}`} className="flex items-start gap-2 rounded-md px-2 py-1.5 text-[13px] leading-[1.45] text-ink-2 hover:bg-surface-subtle">
                   <span
@@ -106,7 +122,7 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
               ))}
             </nav>
           ) : (
-            <span className="hidden min-[1400px]:block" />
+            <span className="hidden min-[87.5rem]:block" />
           )}
 
           {/* 가운데: 섹션 */}
@@ -143,13 +159,40 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
               </div>
             ) : null}
             {sections.map((s) => (
-              <SectionCard key={s.id} s={s} llm={llm} />
+              <SectionCard key={s.id} s={s} llm={llm} comments={commentsOf(s)} meId={me.id} />
             ))}
           </div>
 
           {/* 오른쪽: 서류·첨부·평가 기준 */}
           <aside aria-label="제출 준비" className="flex w-full flex-col gap-6 rounded-xl border border-line bg-surface p-6 xl:sticky xl:top-10">
-            <RequiredDocs applicationId={app.id} docs={app.requiredDocs} />
+            <section aria-labelledby="review-title" className="flex flex-col gap-3">
+              <h2 id="review-title" className="m-0 text-[15px] font-bold">
+                리뷰
+              </h2>
+              <ReviewerPicker applicationId={app.id} users={users} selected={app.reviewerIds} />
+              {openComments.length ? (
+                <ul className="m-0 flex list-none flex-col gap-1 p-0">
+                  {openComments.slice(0, 6).map(({ sec, c }) => (
+                    <li key={c.id}>
+                      <a href={`#sec-${sec.order}`} className="flex flex-col rounded-md px-2 py-1.5 hover:bg-surface-subtle">
+                        <span className="text-[12px] font-semibold text-ink-3">
+                          {sec.title} · {who(c.author)}
+                        </span>
+                        <span className="line-clamp-2 text-[13px] leading-[1.5] text-ink-2">{c.body}</span>
+                      </a>
+                    </li>
+                  ))}
+                  {openComments.length > 6 ? <li className="px-2 text-[12px] text-ink-3">외 {openComments.length - 6}개</li> : null}
+                </ul>
+              ) : (
+                <p className="m-0 text-[13px] text-ink-3">{sections.some((x) => x.comments.length) ? "열린 코멘트가 없어요" : "섹션 아래에서 코멘트를 달 수 있어요"}</p>
+              )}
+              {app.status === "drafting" && !app.reviewerIds.length ? <p className="m-0 text-[12px] text-ink-3">리뷰어를 지정하고 리뷰 요청하기를 누르면 Slack으로 알려요.</p> : null}
+            </section>
+
+            <div className="border-t border-line pt-5">
+              <RequiredDocs applicationId={app.id} docs={app.requiredDocs} />
+            </div>
 
             {draft.criteria.length ? (
               <section aria-labelledby="criteria" className="flex flex-col gap-2 border-t border-line pt-5">

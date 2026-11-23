@@ -63,3 +63,24 @@ export function deadlineAlertText(items: NotifyItem[], now: Date, appBaseUrl: st
   });
   return [`*마감이 다가오는 공고 ${items.length}개*`, ...lines].join("\n");
 }
+
+/** 리뷰 요청 (F6.3): "<링크|공고명> 초안 리뷰를 부탁해요" + 리뷰어·마감·확인 필요 */
+export function reviewRequestText(r: {
+  title: string;
+  draftUrl: string | null;
+  requester: string;
+  reviewers: string[];
+  applyStart: Date | null;
+  applyEnd: Date | null;
+  sections: number;
+  checks: number;
+  note: string | null;
+}, now: Date) {
+  const lines = [
+    `${r.requester}님이 초안 리뷰를 요청했어요`,
+    `• ${link(r.draftUrl, r.title)} — ${deadlineText(r, now)}`,
+    `리뷰어: ${r.reviewers.length ? r.reviewers.join(", ") : "아직 없음"} · 섹션 ${r.sections}개${r.checks ? ` · 확인 필요 ${r.checks}곳` : ""}`,
+  ];
+  if (r.note) lines.push(`메모: ${r.note.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]!)}`);
+  return lines.join("\n");
+}

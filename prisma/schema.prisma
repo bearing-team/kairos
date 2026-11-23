@@ -23,6 +23,8 @@ model User {
   sessions          Session[]
   applicationEvents ApplicationEvent[]
   drafts            Draft[]
+  comments          ReviewComment[]    @relation("CommentAuthor")
+  resolvedComments  ReviewComment[]    @relation("CommentResolver")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 }
@@ -328,6 +330,7 @@ model ApplicationEvent {
 enum NotificationKind {
   digest // 주간 다이제스트 (월 09:00)
   deadline // 마감 알림 (D-7/D-3/D-1)
+  review // 리뷰 요청 (M5)
 }
 
 /// Slack으로 보낸 메시지 기록. dedupeKey는 일정 발송이 성공했을 때만 채워 같은 주·같은 날 중복 발송을 막는다
@@ -413,6 +416,9 @@ model DraftSection {
   guidance      String? // 작성 요령 (양식의 안내문)
   limitChars    Int?
   content       String        @default("")
+  /// 마지막으로 AI가 쓴 본문 (사람이 고친 뒤 "AI 초안과 비교"용)
+  aiContent     String?
+  comments      ReviewComment[]
   /// 【확인 필요】 목록 (모델이 준 것 + 본문에서 찾은 것)
   needsCheck    String[]
   generatedBy   String? // ai | human
@@ -447,4 +453,23 @@ model RequiredDoc {
   updatedAt     DateTime          @updatedAt
 
   @@unique([applicationId, name])
+}
+
+// ── M5 리뷰 ─────────────────────────────
+
+/// 섹션 코멘트. 초안 버전에 묶인다 (새 버전을 만들면 이전 버전에 남음)
+model ReviewComment {
+  id           String       @id @default(cuid())
+  sectionId    String
+  section      DraftSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User         @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  body         String
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?        @relation("CommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([sectionId, createdAt])
 }

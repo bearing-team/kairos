@@ -5,8 +5,8 @@ import { focusWhere, openAnnouncementWhere } from "@/server/matches";
 import { kstDateString, kstDayStart } from "@/lib/kst";
 import { timeline } from "@/lib/dday";
 import type { Prisma } from "@/generated/prisma/client";
-import { deadlineAlertText, deadlineBucket, digestText, type NotifyItem } from "./messages";
-import { postSlack } from "./slack";
+import { deadlineAlertText, deadlineBucket, digestText, reviewRequestText, type NotifyItem } from "./messages";
+import { postSlack, slackConfigured } from "./slack";
 
 const DAY = 86_400_000;
 const appBaseUrl = () => process.env.APP_BASE_URL?.trim().replace(/\/+$/, "") || null;
@@ -100,7 +100,7 @@ export async function sendDeadlineAlerts(opts: SendOpts = {}): Promise<SendResul
 // ── 공통 ─────────────────────────────────────────────
 
 async function deliver(
-  kind: "digest" | "deadline",
+  kind: "digest" | "deadline" | "review",
   text: string,
   itemCount: number,
   dedupeKey: string | null,
@@ -126,4 +126,41 @@ export async function recentNotifications(take = 10) {
 export function describeSend(r: SendResult) {
   if (r.sent) return `보냈어요 (${r.itemCount}건)`;
   return { "dry-run": `미리보기 (${r.itemCount}건)`, "already-sent": "이번 주에는 이미 보냈어요", nothing: "보낼 공고가 없어요", error: `실패: ${r.error}` }[r.reason];
+}
+
+/** 리뷰 요청 알림 (F6.3). Slack이 없으면 보내지 않는다. 실패는 기록만 */
+export async function sendReviewRequest(applicationId: string, userId: string | null, now = new Date()): Promise<SendResult | null> {
+  if (!slackConfigured()) return null;
+  const app = await prisma.application.findUniqueOrThrow({
+    where: { id: applicationId },
+    select: {
+      id: true,
+      reviewerIds: true,
+      announcement: { select: { title: true, applyStart: true, applyEnd: true } },
+      drafts: { orderBy: { version: "desc" }, take: 1, select: { sections: { select: { needsCheck: true } } } },
+    },
+  });
+  const ids = [...app.reviewerIds, ...(userId ? [userId] : [])];
+  const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } });
+  const nameOf = (id: string) => {
+    const u = users.find((x) => x.id === id);
+    return u?.name ?? u?.email ?? "팀원";
+  };
+  const sections = app.drafts[0]?.sections ?? [];
+  const base = appBaseUrl();
+  const text = reviewRequestText(
+    {
+      title: app.announcement.title,
+      draftUrl: base ? `${base}/applications/${app.id}/draft` : null,
+      requester: userId ? nameOf(userId) : "누군가",
+      reviewers: app.reviewerIds.map(nameOf),
+      applyStart: app.announcement.applyStart,
+      applyEnd: app.announcement.applyEnd,
+      sections: sections.length,
+      checks: sections.reduce((n, s) => n + s.needsCheck.length, 0),
+      note: null,
+    },
+    now,
+  );
+  return deliver("review", text, 1, null, { manual: true, userId }, []);
 }

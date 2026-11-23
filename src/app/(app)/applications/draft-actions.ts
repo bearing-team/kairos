@@ -6,8 +6,8 @@ import { z } from "zod";
 import { requireUser } from "@/server/session";
 import { prisma } from "@/server/db";
 import { llmConfigured } from "@/server/llm";
-import { setStatus } from "@/server/matching/run";
-import { createDraft, generateSections, runDraft } from "@/server/drafting/run";
+import { transition } from "@/server/applications";
+import { activeDraft, createDraft, generateSections, runDraft } from "@/server/drafting/run";
 import { charCount, extractChecks } from "@/lib/needsCheck";
 
 export type DraftActionState = { ok: boolean; message: string } | null;
@@ -20,7 +20,13 @@ export async function startDraft(applicationId: string, _prev: DraftActionState)
   if (!app) return { ok: false, message: "공고를 찾지 못했어요" };
   if (app.status === "excluded") return { ok: false, message: "제외한 공고예요. 다시 검토하기를 먼저 눌러 주세요" };
   if (app.status === "new" || app.status === "triage") {
-    await setStatus(applicationId, app.status, "drafting", { userId: user.id }).catch(() => undefined);
+    // 상태를 옮기면 초안이 없을 때 transition이 바로 만든다
+    const r = await transition(applicationId, "drafting", { userId: user.id });
+    if (!r.ok) return { ok: false, message: r.message };
+    if (await activeDraft(applicationId)) {
+      revalidatePath("/", "layout");
+      return { ok: true, message: "첨부 양식을 받아 초안을 쓰기 시작했어요" };
+    }
   }
   const { id, created } = await createDraft(applicationId, user.id);
   if (!created) return { ok: false, message: "초안을 만드는 중이에요. 끝나면 다시 눌러 주세요" };
@@ -107,4 +113,46 @@ export async function removeRequiredDoc(docId: string): Promise<void> {
   await requireUser();
   await prisma.requiredDoc.delete({ where: { id: docId } }).catch(() => undefined);
   revalidatePath("/", "layout");
+}
+
+// ── 리뷰 (M5) ───────────────────────────────
+
+const CommentSchema = z.object({ body: z.string().trim().min(1, "내용을 넣어 주세요").max(4000, "너무 길어요") });
+
+export async function addComment(sectionId: string, _prev: DraftActionState, fd: FormData): Promise<DraftActionState> {
+  const user = await requireUser();
+  const parsed = CommentSchema.safeParse({ body: String(fd.get("body") ?? "") });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
+  const s = await prisma.draftSection.findUnique({ where: { id: sectionId }, select: { id: true } });
+  if (!s) return { ok: false, message: "섹션을 찾지 못했어요" };
+  await prisma.reviewComment.create({ data: { sectionId, authorId: user.id, body: parsed.data.body } });
+  revalidatePath("/", "layout");
+  return { ok: true, message: "코멘트를 달았어요" };
+}
+
+/** 해결 처리 / 다시 열기 (누구나) */
+export async function setCommentResolved(commentId: string, resolved: boolean): Promise<void> {
+  const user = await requireUser();
+  await prisma.reviewComment.update({
+    where: { id: commentId },
+    data: resolved ? { resolvedAt: new Date(), resolvedById: user.id } : { resolvedAt: null, resolvedById: null },
+  });
+  revalidatePath("/", "layout");
+}
+
+/** 지우기는 쓴 사람만 */
+export async function deleteComment(commentId: string): Promise<void> {
+  const user = await requireUser();
+  await prisma.reviewComment.deleteMany({ where: { id: commentId, authorId: user.id } });
+  revalidatePath("/", "layout");
+}
+
+export async function setReviewers(applicationId: string, reviewerIds: string[]): Promise<DraftActionState> {
+  await requireUser();
+  const ids = [...new Set(reviewerIds)].slice(0, 10);
+  const found = await prisma.user.count({ where: { id: { in: ids } } });
+  if (found !== ids.length) return { ok: false, message: "없는 팀원이 있어요" };
+  await prisma.application.update({ where: { id: applicationId }, data: { reviewerIds: ids } });
+  revalidatePath("/", "layout");
+  return { ok: true, message: "리뷰어를 바꿨어요" };
 }

@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { useDismiss } from "@/components/ui/useDismiss";
 import { AlertCircle, ChevronDown, PenLine, RotateCcw } from "lucide-react";
 import { regenerateSection, saveSection, type DraftActionState } from "@/app/(app)/applications/draft-actions";
 import { buttonClass } from "@/components/ui/Button";
 import { charCount } from "@/lib/needsCheck";
+import { lineDiff } from "@/lib/diff";
 import { CheckText } from "./CheckText";
+import { CommentThread, type CommentView } from "./CommentThread";
 
 export type SectionView = {
   id: string;
@@ -18,6 +21,7 @@ export type SectionView = {
   error: string | null;
   needsCheck: string[];
   generatedBy: string | null;
+  aiContent: string | null;
 };
 
 const REWRITE = [
@@ -37,8 +41,10 @@ function Counter({ n, limit }: { n: number; limit: number | null }) {
   );
 }
 
-export function SectionCard({ s, llm }: { s: SectionView; llm: boolean }) {
+export function SectionCard({ s, llm, comments, meId }: { s: SectionView; llm: boolean; comments: CommentView[]; meId: string }) {
   const [editing, setEditing] = useState(false);
+  const [comparing, setComparing] = useState(false);
+  const edited = !!s.aiContent && s.aiContent !== s.content;
   const [text, setText] = useState(s.content);
   const [saveState, save, saving] = useActionState<DraftActionState, FormData>(async (prev, fd) => {
     const r = await saveSection(s.id, prev, fd);
@@ -48,20 +54,7 @@ export function SectionCard({ s, llm }: { s: SectionView; llm: boolean }) {
   const [pending, start] = useTransition();
   const [rewriteMsg, setRewriteMsg] = useState<string | null>(null);
   const busy = s.status === "generating" || pending;
-  const menu = useRef<HTMLDetailsElement>(null);
-  // 메뉴 밖을 누르거나 Esc면 닫는다
-  useEffect(() => {
-    const close = (e: Event) => {
-      const m = menu.current;
-      if (m?.open && (e.type === "keydown" ? (e as KeyboardEvent).key === "Escape" : !m.contains(e.target as Node))) m.open = false;
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", close);
-    };
-  }, []);
+  const menu = useDismiss();
 
   const rewrite = (mode: (typeof REWRITE)[number]["mode"]) =>
     start(async () => {
@@ -160,7 +153,23 @@ export function SectionCard({ s, llm }: { s: SectionView; llm: boolean }) {
                 초안을 쓰지 못했어요. {s.error}
               </p>
             ) : null}
-            {s.content ? <CheckText content={s.content} /> : s.status !== "failed" ? <p className="m-0 text-[14px] text-ink-3">아직 비어 있어요.</p> : null}
+            {comparing && edited ? (
+              <div className="flex flex-col rounded-lg border border-line p-3 text-[14px] leading-[1.7]" aria-label="AI 초안과 비교">
+                {lineDiff(s.aiContent!, s.content).map((l, i) => (
+                  <div
+                    key={i}
+                    className={`rounded px-2 whitespace-pre-wrap ${l.type === "add" ? "bg-[var(--status-submitted-bg)] text-[var(--status-submitted-fg)]" : l.type === "del" ? "bg-surface-subtle text-ink-3 line-through" : "text-ink-2"}`}
+                  >
+                    <span className="sr-only">{l.type === "add" ? "추가: " : l.type === "del" ? "삭제: " : ""}</span>
+                    {l.text || " "}
+                  </div>
+                ))}
+              </div>
+            ) : s.content ? (
+              <CheckText content={s.content} />
+            ) : s.status !== "failed" ? (
+              <p className="m-0 text-[14px] text-ink-3">아직 비어 있어요.</p>
+            ) : null}
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -173,7 +182,13 @@ export function SectionCard({ s, llm }: { s: SectionView; llm: boolean }) {
                 <PenLine size={14} strokeWidth={2.2} aria-hidden="true" />
                 {s.content ? "직접 고치기" : "직접 쓰기"}
               </button>
-              {s.generatedBy === "human" ? <span className="text-[12px] text-ink-3">사람이 고친 내용</span> : null}
+              {edited ? (
+                <button type="button" aria-pressed={comparing} onClick={() => setComparing((v) => !v)} className="h-9 rounded-full px-3 text-[13px] font-semibold text-accent hover:bg-accent-soft">
+                  {comparing ? "비교 닫기" : "AI 초안과 비교"}
+                </button>
+              ) : s.generatedBy === "human" ? (
+                <span className="text-[12px] text-ink-3">사람이 쓴 내용</span>
+              ) : null}
               {rewriteMsg ? (
                 <span role="alert" className="text-[12px] text-urgent-text">
                   {rewriteMsg}
@@ -183,6 +198,7 @@ export function SectionCard({ s, llm }: { s: SectionView; llm: boolean }) {
           </div>
         )}
       </div>
+      <CommentThread sectionId={s.id} comments={comments} meId={meId} />
     </section>
   );
 }
