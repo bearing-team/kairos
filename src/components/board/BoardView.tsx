@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { ArrowRightLeft, MessageSquare } from "lucide-react";
 import { moveCard } from "@/app/(app)/applications/actions";
 import { Avatar } from "@/components/ui/Avatar";
-import { TimelineBar } from "@/components/ui/TimelineBar";
 import { allowedNext } from "@/lib/transitions";
 import { withRo } from "@/lib/format";
 import { useDismiss } from "@/components/ui/useDismiss";
@@ -86,8 +85,8 @@ export function BoardView({ columns, initial, recommendedMore }: { columns: read
                 setOver(null);
               }}
               className={[
-                "flex min-h-[200px] flex-col gap-3 rounded-[24px] border p-4 transition-colors duration-[120ms]",
-                dragging && over === col.key ? (droppable ? "border-accent bg-accent-soft" : "border-line bg-surface-sunken") : "border-line bg-surface-subtle",
+                "flex flex-col gap-3 rounded-[24px] border p-4 backdrop-blur-[24px] transition-colors duration-[120ms]",
+                dragging && over === col.key ? (droppable ? "border-accent bg-accent-soft" : "border-line bg-surface-sunken") : "border-[var(--glass-column-border)] bg-[var(--glass-column)]",
                 dragging && !droppable && over !== col.key ? "opacity-70" : "",
               ].join(" ")}
             >
@@ -155,6 +154,11 @@ function Card({
   const menu = useDismiss();
   const href = c.status === "drafting" || c.status === "review" ? `/applications/${c.id}/draft` : `/announcements/${c.announcementId}`;
   const urgent = c.t.phase === "open" && c.t.urgent;
+  const done = c.outcome !== null;
+  // 바: 접수 전 0, 진행 중 접수 기간 경과(7일 이내 주황), 제출 후 초록 100%
+  const bar = done ? 1 : c.t.phase === "open" ? c.t.progress : c.t.phase === "closed" ? 1 : 0;
+  const barColor = done ? "var(--status-submitted-dot)" : urgent ? "var(--color-urgent)" : c.t.phase === "open" ? "var(--color-accent)" : "var(--color-timeline-idle)";
+  const labelColor = done ? "text-[var(--status-submitted-fg)]" : urgent ? "text-urgent-text" : "text-ink-2";
   return (
     <article
       draggable
@@ -164,7 +168,7 @@ function Card({
         onDragStart();
       }}
       onDragEnd={onDragEnd}
-      className={`flex cursor-grab flex-col gap-3.5 rounded-[18px] bg-surface p-[18px] shadow-card active:cursor-grabbing ${dragging ? "opacity-40" : ""}`}
+      className={`group flex cursor-grab flex-col gap-3.5 rounded-[18px] bg-surface p-[18px] shadow-card active:cursor-grabbing ${dragging ? "opacity-40" : done ? "opacity-70" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <Link href={href} draggable={false} className="text-[15px] leading-[1.45] font-bold text-ink hover:underline hover:underline-offset-4">
@@ -172,13 +176,15 @@ function Card({
         </Link>
         {c.score !== null ? <span className={`flex-none text-[15px] font-extrabold ${c.score >= 85 ? "text-accent" : "text-ink-2"}`}>{c.score}</span> : null}
       </div>
-      <span className="-mt-1.5 text-[12px] text-ink-3">
-        {[c.organization, c.progress ? `초안 ${c.progress.done}/${c.progress.total}` : null].filter(Boolean).join(" · ")}
+      <span className="text-[12px] text-ink-3">
+        {[c.organization, c.progress ? `초안 ${c.progress.done}/${c.progress.total}` : null, c.outcome].filter(Boolean).join(" · ")}
       </span>
       <div className="flex flex-col gap-1.5">
-        <TimelineBar t={c.t} start={null} end={null} label={false} muted={c.status === "submitted" || c.status.startsWith("result")} />
+        <div aria-hidden="true" className="h-1 rounded-full bg-track">
+          <div className="h-1 rounded-full" style={{ width: `${bar * 100}%`, background: barColor }} />
+        </div>
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-[12px] font-bold ${urgent ? "text-urgent-text" : "text-ink-2"}`}>{c.dday}</span>
+          <span className={`text-[12px] font-bold ${labelColor}`}>{c.dday}</span>
           <div className="flex items-center gap-2">
             {c.openComments ? (
               <span className="flex items-center gap-1 text-[12px] font-semibold text-ink-2" title="해결 안 된 코멘트">
@@ -187,19 +193,15 @@ function Card({
                 <span className="sr-only">개 코멘트 열림</span>
               </span>
             ) : null}
-            <span className="flex -space-x-1.5">
-              {c.people.map((p) => (
-                <span key={p.id} title={p.name ?? p.email ?? ""} className="rounded-full ring-2 ring-surface">
-                  <Avatar name={p.name} email={p.email} size={24} />
-                </span>
-              ))}
-            </span>
             {targets.length ? (
               <details ref={menu} className="relative">
-                <summary aria-label={`${c.title} 옮기기`} className="flex size-7 cursor-pointer list-none items-center justify-center rounded-full text-ink-3 hover:bg-surface-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
-                  <ArrowRightLeft size={14} strokeWidth={2.2} aria-hidden="true" />
+                <summary
+                  aria-label={`${c.title} 옮기기`}
+                  className="flex size-6 cursor-pointer list-none items-center justify-center rounded-full text-ink-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-surface-subtle hover:text-ink focus-visible:opacity-100 pointer-coarse:opacity-100 [&::-webkit-details-marker]:hidden"
+                >
+                  <ArrowRightLeft size={13} strokeWidth={2.2} aria-hidden="true" />
                 </summary>
-                <div className="absolute right-0 z-10 mt-1 flex w-36 flex-col rounded-lg border border-line bg-surface p-1 shadow-card">
+                <div className="absolute right-0 z-10 mt-1 flex w-40 flex-col rounded-lg border border-line bg-surface p-1 shadow-card">
                   {targets.map((t) => (
                     <button
                       key={t.key}
@@ -216,6 +218,19 @@ function Card({
                 </div>
               </details>
             ) : null}
+            <span className="flex -space-x-1.5">
+              {c.people.length ? (
+                c.people.map((p) => (
+                  <span key={p.id} title={p.name ?? p.email ?? ""} className="rounded-full ring-2 ring-surface">
+                    <Avatar name={p.name} email={p.email} size={24} tone="neutral" />
+                  </span>
+                ))
+              ) : (
+                <span title="담당자 없음">
+                  <Avatar name={null} email={null} size={24} tone="neutral" />
+                </span>
+              )}
+            </span>
           </div>
         </div>
       </div>

@@ -59,6 +59,14 @@
   --hero-on: #FFFFFF;                       /* 히어로 위 글자: 작은 글자도 100% 흰색 */
   --hero-chip-bg: rgba(255, 255, 255, 0.18);
   --hero-track: rgba(255, 255, 255, 0.24);
+
+  /* 보드(C안) 모먼트: 상단 파스텔 그라데이션 + 글래스 열. 홈 히어로와 동시에 보이지 않으므로 화면당 한 곳 규칙 충족 */
+  --gradient-board: linear-gradient(115deg, #C9D8FF 0%, #DCCFFF 48%, #FAD3EC 100%);
+  --board-date: #3A3F8C;
+  --glass-column: rgba(255, 255, 255, 0.55);
+  --glass-column-border: rgba(255, 255, 255, 0.7);
+  --glass-stat: rgba(255, 255, 255, 0.62);
+  --avatar-neutral: #EEF0F6;
   --hero-ghost-border: rgba(255, 255, 255, 0.4);
   --hero-primary-fg: #2D3FB8;               /* 히어로 안 흰 버튼의 글자 */
 

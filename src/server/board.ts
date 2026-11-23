@@ -24,13 +24,17 @@ export type BoardCard = {
   organization: string | null;
   score: number | null;
   t: Timeline;
+  /** 카드 아래 왼쪽 글자: "12.01 접수 시작" / "D-15" / "11.14 제출" */
   dday: string;
+  /** 기관 뒤에 붙는 상태: "결과 대기" / "선정" / "미선정" */
+  outcome: string | null;
   progress: { done: number; total: number } | null;
   openComments: number;
   people: { id: string; name: string | null; email: string | null }[];
 };
 
 const RECOMMENDED_LIMIT = 12;
+const SUBMITTED: ApplicationStatus[] = ["submitted", "result_pass", "result_fail"];
 const SUBMITTED_DAYS = 60;
 
 const select = {
@@ -38,6 +42,8 @@ const select = {
   status: true,
   ownerId: true,
   reviewerIds: true,
+  submittedAt: true,
+  statusChangedAt: true,
   match: { select: { score: true } },
   announcement: { select: { id: true, title: true, organization: true, applyStart: true, applyEnd: true } },
 } satisfies Prisma.ApplicationSelect;
@@ -97,7 +103,12 @@ export async function getBoard(now = new Date()) {
       organization: a.announcement.organization,
       score: a.match.score,
       t,
-      dday: t.phase === "upcoming" && a.announcement.applyStart ? `${md(a.announcement.applyStart)} 접수 시작` : ddayLabel(t),
+      dday: SUBMITTED.includes(a.status)
+        ? `${md(a.submittedAt ?? a.statusChangedAt)} 제출`
+        : t.phase === "upcoming" && a.announcement.applyStart
+          ? `${md(a.announcement.applyStart)} 접수 시작`
+          : ddayLabel(t),
+      outcome: a.status === "submitted" ? "결과 대기" : a.status === "result_pass" ? "선정" : a.status === "result_fail" ? "미선정" : null,
       progress: p && p.total ? { done: p.done, total: p.total } : null,
       openComments: openByApp.get(a.id) ?? 0,
       people: ids.map((id) => users.find((u) => u.id === id)).filter((u): u is NonNullable<typeof u> => !!u),
@@ -122,8 +133,16 @@ export async function getBoard(now = new Date()) {
     inProgress: inProgress.length,
     reviewWaiting: review.length,
     submittedThisMonth,
+    // "1 / 4건": 이번 달 목표 = 이번 달 제출 + 진행 중이면서 이번 달 안에 마감
+    dueThisMonth: submittedThisMonth + inProgress.filter((a) => a.announcement.applyEnd && sameKstMonth(a.announcement.applyEnd, now) && a.announcement.applyEnd >= now).length,
   };
 }
+
+const sameKstMonth = (a: Date, b: Date) => {
+  const x = kstYmd(a);
+  const y = kstYmd(b);
+  return x.year === y.year && x.month === y.month;
+};
 
 const md = (d: Date) => {
   const { month, day } = kstYmd(d);
