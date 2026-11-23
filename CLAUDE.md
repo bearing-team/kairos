@@ -39,8 +39,9 @@ pnpm test             # vitest
 pnpm lint / pnpm typecheck / pnpm build
 pnpm sync [소스]      # 공고 소싱 1회 (bizinfo | kstartup, 생략하면 둘 다). 키 없는 소스는 건너뜀
 pnpm sync:probe       # 실제 API 응답을 fixtures/<소스>/live-YYYYMMDD.json으로 저장 (DB에 안 씀)
-pnpm worker           # pg-boss 워커: 매일 08:00 기업마당, 08:05 K-Startup, 평일 매시 30분 점수 대기분 (KST)
+pnpm worker           # pg-boss 워커(KST): 매일 08:00 기업마당, 08:05 K-Startup, 평일 매시 30분 점수 대기분, 월 09:00 다이제스트, 매일 09:05 마감 알림
 pnpm score [개수|all] # 하드필터 다시 + 점수 대기 공고 LLM 점수 (기본 SCORE_MAX_PER_RUN=30)
+pnpm notify <digest|deadline> [--dry-run]  # Slack 다이제스트·마감 알림 지금 보내기 (--dry-run은 출력만)
 ```
 
 처음 세팅: `cp .env.example .env` → `AUTH_SECRET`(openssl rand -base64 32) 채우기 → 위 순서대로.
@@ -67,4 +68,11 @@ pnpm score [개수|all] # 하드필터 다시 + 점수 대기 공고 LLM 점수 
 - 하드필터는 확실할 때만 제외한다. 애매하면 통과 + `filterNotes`(→ LLM 입력, 상세의 "확인 필요")
 - 상태 전이는 `src/lib/transitions.ts`로 서버에서만 검증, 변경은 `setStatus()`로 해서 `ApplicationEvent`가 남게 한다. 사람이 정한 상태는 하드필터가 덮어쓰지 않는다(`autoExcluded`만 자동 복귀)
 - 회사 프로필·제외 규칙 저장 → `refreshMatches()` 바로. 소싱·URL 추가 → 규칙 검사 바로, 점수는 `after()`로 응답 뒤에
-- `src/server/{llm,company,matching/*}.ts`는 tsx 스크립트에서도 쓰므로 `server-only`를 붙이지 않는다
+- `src/server/{llm,company,matches,matching/*,notify/*}.ts`는 tsx 스크립트·워커에서도 쓰므로 `server-only`를 붙이지 않는다
+
+## 알림 (M3)
+- `src/server/notify/`: `slack.ts`(웹훅 발송, 주소는 hooks.slack.com만 · 개발 중엔 localhost 허용), `messages.ts`(문구, 순수 함수·테스트), `run.ts`(대상 조회·발송·기록)
+- 다이제스트 대상은 홈 헤드라인과 같은 `focusWhere()`. 일정 발송은 `Notification.dedupeKey = digest:<그 주 월요일>`로 주 1회, 수동은 매번
+- 마감 알림은 초안 작성 중·리뷰 중만, 구간(7/3/1)마다 한 번(`DeadlineAlert`). 하루를 놓치면 다음 구간에서 보낸다. 발송 실패는 기록만 하고 다음 실행에서 다시
+- 앱: 회사 프로필 → "Slack 알림" 탭에서 미리보기·지금 보내기·보낸 기록
+- 로컬 확인은 가짜 웹훅(`SLACK_WEBHOOK_URL=http://127.0.0.1:<port>/…`)으로. 실제 팀 채널로 테스트 발송은 사람이 한다

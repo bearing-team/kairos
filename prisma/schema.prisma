@@ -291,6 +291,7 @@ model Application {
   resultNote      String?
   statusChangedAt DateTime           @default(now())
   events          ApplicationEvent[]
+  deadlineAlerts  DeadlineAlert[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
@@ -311,4 +312,41 @@ model ApplicationEvent {
   createdAt     DateTime           @default(now())
 
   @@index([applicationId, createdAt])
+}
+
+// ── M3: 알림 ─────────────────────────────────────────
+
+enum NotificationKind {
+  digest // 주간 다이제스트 (월 09:00)
+  deadline // 마감 알림 (D-7/D-3/D-1)
+}
+
+/// Slack으로 보낸 메시지 기록. dedupeKey는 일정 발송이 성공했을 때만 채워 같은 주·같은 날 중복 발송을 막는다
+model Notification {
+  id        String           @id @default(cuid())
+  kind      NotificationKind
+  dedupeKey String?          @unique // 예: digest:2026-11-23
+  text      String
+  itemCount Int
+  ok        Boolean
+  error     String?
+  manual    Boolean          @default(false)
+  userId    String?
+  alerts    DeadlineAlert[]
+  createdAt DateTime         @default(now())
+
+  @@index([kind, createdAt])
+}
+
+/// 공고별로 어느 마감 구간(7/3/1) 알림을 보냈는지
+model DeadlineAlert {
+  id             String       @id @default(cuid())
+  applicationId  String
+  application    Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  bucket         Int // 7 | 3 | 1
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([applicationId, bucket])
 }

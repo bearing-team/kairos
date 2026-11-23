@@ -4,6 +4,7 @@ import PgBoss from "pg-boss";
 import { QUEUES, SCHEDULES, TZ } from "@/server/jobs/queues";
 import { SOURCE_LABEL, syncSource, type ApiSource } from "@/server/sources/sync";
 import { describeMatch, matchAfterSync } from "@/server/matching/pipeline";
+import { describeSend, sendDeadlineAlerts, sendDigest } from "@/server/notify/run";
 
 async function main() {
   const boss = new PgBoss({ connectionString: process.env.DATABASE_URL!, schema: "pgboss" });
@@ -26,6 +27,9 @@ async function main() {
   await boss.work(QUEUES.scorePending, async () => {
     console.log(`[score] ${describeMatch(await matchAfterSync())}`);
   });
+
+  await boss.work(QUEUES.notifyDigest, async () => console.log(`[digest] ${describeSend(await sendDigest())}`));
+  await boss.work(QUEUES.notifyDeadline, async () => console.log(`[deadline] ${describeSend(await sendDeadlineAlerts())}`));
 
   console.log(`워커 시작: ${SCHEDULES.map((s) => `${s.queue}@${s.cron}`).join(", ")} (${TZ})`);
 

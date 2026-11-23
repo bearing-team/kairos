@@ -1,4 +1,3 @@
-import "server-only";
 import { prisma } from "@/server/db";
 import { getCompany } from "@/server/company";
 import { kstDayStart } from "@/lib/kst";
@@ -31,6 +30,17 @@ export const rowSelect = {
 } satisfies Prisma.ApplicationSelect;
 export type AppRow = Prisma.ApplicationGetPayload<{ select: typeof rowSelect }>;
 
+/** "이번 주에 챙길 공고" (ARCHITECTURE.md 5.3): 7일 이내 마감 또는 점수 85+, 상태 new|drafting|review. 홈 헤드라인과 Slack 다이제스트가 같이 쓴다 */
+export function focusWhere(companyId: string, now: Date): Prisma.ApplicationWhereInput {
+  const weekEnd = new Date(kstDayStart(now).getTime() + 8 * DAY); // D-7 마감까지
+  return {
+    companyId,
+    announcement: openAnnouncementWhere(now),
+    status: { in: FOCUS_STATUSES },
+    OR: [{ announcement: { applyEnd: { lt: weekEnd } } }, { match: { score: { gte: 85 } } }],
+  };
+}
+
 const byScore: Prisma.ApplicationOrderByWithRelationInput[] = [
   { match: { score: { sort: "desc", nulls: "last" } } },
   { announcement: { applyEnd: { sort: "asc", nulls: "last" } } },
@@ -50,17 +60,10 @@ export async function getHomeData(tab: HomeTab, now = new Date()) {
   const company = await getCompany();
   const open = openAnnouncementWhere(now);
   const base = { companyId: company.id, announcement: open } satisfies Prisma.ApplicationWhereInput;
-  const weekEnd = new Date(kstDayStart(now).getTime() + 8 * DAY); // D-7까지
 
   const [todayNew, focusCount, hero, counts] = await Promise.all([
     prisma.announcement.count({ where: { duplicateOfId: null, firstSeenAt: { gte: kstDayStart(now) } } }),
-    prisma.application.count({
-      where: {
-        ...base,
-        status: { in: FOCUS_STATUSES },
-        OR: [{ announcement: { applyEnd: { lt: weekEnd } } }, { match: { score: { gte: 85 } } }],
-      },
-    }),
+    prisma.application.count({ where: focusWhere(company.id, now) }),
     prisma.application.findFirst({
       where: { ...base, status: { in: HERO_STATUSES }, match: { score: { not: null } } },
       orderBy: byScore,

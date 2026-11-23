@@ -9,12 +9,18 @@ import { ExclusionRules } from "@/components/company/ExclusionRules";
 import { prisma } from "@/server/db";
 import { getCompany } from "@/server/company";
 import { requireUser } from "@/server/session";
+import { buildDeadlineAlerts, buildDigest, recentNotifications } from "@/server/notify/run";
+import { slackConfigured, webhookUrl } from "@/server/notify/slack";
+import { SendNowButton } from "@/components/company/NotifyPanel";
+import { SlackPreview } from "@/components/company/SlackPreview";
+import { formatKstRelative } from "@/lib/format";
 
-type Tab = "basic" | "items" | "rules";
+type Tab = "basic" | "items" | "rules" | "notify";
 const TABS: { key: Tab; label: string }[] = [
   { key: "basic", label: "기본 정보" },
   { key: "items", label: "아이템 카드" },
   { key: "rules", label: "제외 규칙" },
+  { key: "notify", label: "Slack 알림" },
 ];
 
 export default function CompanyPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
@@ -78,7 +84,75 @@ async function CompanyContent({ searchParams }: { searchParams: Promise<{ tab?: 
           })}
         />
       ) : null}
+
+      {tab === "notify" ? <NotifySettings /> : null}
     </>
+  );
+}
+
+async function NotifySettings() {
+  const now = new Date();
+  const [digest, deadline, log] = await Promise.all([buildDigest(now), buildDeadlineAlerts(now), recentNotifications(10)]);
+  const w = webhookUrl();
+  const configured = slackConfigured();
+  const card = "flex flex-col gap-4 rounded-xl border border-line bg-surface p-6";
+  return (
+    <div className="flex flex-col gap-5">
+      {!configured ? (
+        <p role="status" className="m-0 rounded-lg bg-[var(--status-review-bg)] px-4 py-3 text-[13px] text-urgent-text">
+          {"error" in w ? w.error : ""} · Slack에서 Incoming Webhook을 만들고 주소를 .env의 SLACK_WEBHOOK_URL에 넣은 뒤 서버를 다시 켜 주세요
+        </p>
+      ) : null}
+
+      <section aria-labelledby="digest" className={card}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 id="digest" className="m-0 text-[17px] font-bold">
+              주간 다이제스트
+            </h2>
+            <p className="m-0 text-[13px] text-ink-3">매주 월요일 오전 9시 · 이번 주에 챙길 공고(7일 안 마감 또는 적합도 85 이상)의 링크·공고명·마감일</p>
+          </div>
+          <SendNowButton kind="digest" label="지금 보내기" variant="primary" disabled={!configured} />
+        </div>
+        <SlackPreview text={digest.text} />
+      </section>
+
+      <section aria-labelledby="deadline" className={card}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 id="deadline" className="m-0 text-[17px] font-bold">
+              마감 알림
+            </h2>
+            <p className="m-0 text-[13px] text-ink-3">매일 오전 9시 5분 · 초안 작성 중·리뷰 중인 공고의 마감 D-7, D-3, D-1 (구간마다 한 번)</p>
+          </div>
+          <SendNowButton kind="deadline" label="오늘 알림 보내기" variant="soft" disabled={!configured || deadline.due.length === 0} />
+        </div>
+        {deadline.due.length ? (
+          <SlackPreview text={deadline.text} />
+        ) : (
+          <p className="m-0 rounded-lg bg-surface-subtle p-4 text-[14px] text-ink-3">오늘 보낼 마감 알림이 없어요.</p>
+        )}
+      </section>
+
+      {log.length ? (
+        <section aria-labelledby="sent-log" className={card}>
+          <h2 id="sent-log" className="m-0 text-[17px] font-bold">
+            보낸 기록
+          </h2>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0 text-[13px]">
+            {log.map((n) => (
+              <li key={n.id} className="flex flex-wrap gap-x-2 text-ink-2">
+                <span className="text-ink-3">{formatKstRelative(n.createdAt, now)}</span>
+                <span>
+                  {n.kind === "digest" ? "주간 다이제스트" : "마감 알림"} {n.itemCount}건{n.manual ? " (수동)" : ""}
+                </span>
+                <span className={n.ok ? "text-ink-3" : "text-urgent-text"}>{n.ok ? "보냄" : `실패 · ${n.error}`}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
   );
 }
 

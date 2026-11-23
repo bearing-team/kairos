@@ -208,6 +208,7 @@ SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, up
   전체 보기: <앱 홈 URL>
   ```
 - 마감 알림: 진행 중 공고 D-7/D-3/D-1, 하루 1회
+- **M3 반영**: 진행 중 = 초안 작성 중·리뷰 중. 구간마다 한 번(`DeadlineAlert @@unique([applicationId, bucket])`), 놓친 날은 다음 구간으로. 다이제스트 대상은 홈 "이번 주에 챙길 공고"와 같은 조건이고, 접수 시작 전이면 "12.19 마감 · 12.01 접수 시작". 발송 기록은 `Notification`(성공 시에만 `dedupeKey`). 링크는 원문 공고, 없으면 앱 상세(`APP_BASE_URL`). 리뷰 요청 알림(F6.3)은 리뷰어 지정과 함께 M5에서
 
 ## 8. 디렉토리 구조 (제안)
 
