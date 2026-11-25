@@ -1,10 +1,16 @@
-// Slack Incoming Webhook (ARCHITECTURE.md 7절). 주소는 env SLACK_WEBHOOK_URL에만 둔다
+// Slack Incoming Webhook (ARCHITECTURE.md 7절). 주소는 .env SLACK_WEBHOOK_URL 또는 화면에서 넣은 값
+import { secret } from "@/server/secrets";
 
 export type SlackResult = { ok: true } | { ok: false; error: string };
 
 /** 웹훅 주소 검사: Slack 공식 주소만. 개발 중에는 로컬 테스트 서버도 허용 */
 export function webhookUrl(): { url: string } | { error: string } {
-  const raw = process.env.SLACK_WEBHOOK_URL?.trim();
+  return checkWebhookUrl(secret("SLACK_WEBHOOK_URL"));
+}
+
+/** 주소 형식만 검사 (화면에서 저장하기 전에도 쓴다) */
+export function checkWebhookUrl(input: string | null | undefined): { url: string } | { error: string } {
+  const raw = input?.trim();
   if (!raw) return { error: "SLACK_WEBHOOK_URL이 없어요" };
   let u: URL;
   try {

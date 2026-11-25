@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db";
+import { secret } from "@/server/secrets";
 import { fetchBizinfo } from "./bizinfo";
 import { fetchKstartup } from "./kstartup";
 import { upsertAnnouncements } from "./upsert";
@@ -11,8 +12,7 @@ export { SOURCE_LABEL } from "@/lib/sources";
 
 /** 소스별 API 키. 없으면 null → 그 소스는 건너뛴다 */
 export function sourceKey(source: ApiSource): string | null {
-  const v = source === "bizinfo" ? process.env.BIZINFO_API_KEY : process.env.DATA_GO_KR_SERVICE_KEY;
-  return v?.trim() ? v.trim() : null;
+  return secret(source === "bizinfo" ? "BIZINFO_API_KEY" : "DATA_GO_KR_SERVICE_KEY");
 }
 
 export async function fetchSource(source: ApiSource, key: string) {

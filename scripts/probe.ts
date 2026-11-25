@@ -1,6 +1,7 @@
 // pnpm sync:probe — 실제 API 응답을 fixtures/<source>/live-YYYYMMDD.json으로 저장 (DB에는 안 씀)
 // 파서 필드 확인·회귀 테스트용. 항목은 앞 20건만 남긴다.
 import "dotenv/config";
+import { ensureSecrets } from "@/server/secrets";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { API_SOURCES, fetchSource, sourceKey } from "@/server/sources/sync";
@@ -16,6 +17,7 @@ function trim(body: unknown): unknown {
 }
 
 async function main() {
+  await ensureSecrets(true); // 화면에서 넣은 연결 키
   const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, "");
   for (const source of API_SOURCES) {
     const key = sourceKey(source);

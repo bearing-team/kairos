@@ -3,6 +3,7 @@
 - 확인일: 2026-11-23, 출처: https://www.bizinfo.go.kr/apiDetail.do?id=bizinfoApi (사이트 > 활용정보 > 정책정보 개방 > 지원사업정보 API. 수정일 2025.10.22)
 - URL: `https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do`, **GET**, JSON/XML
 - 키 없이 호출하면 RSS XML에 `<reqErr>인증키를 입력해주세요.</reqErr>` (실제 호출로 확인)
+- 틀린 키로 dataType=json 호출하면 JSON `{"reqErr":"존재하지 않는 인증키 입니다."}` (2026-11-26 실제 호출로 확인) → `SourceError`로 그대로 보여 준다
 - **마감되지 않은 공고만 제공**한다 (페이지 안내 문구)
 
 ## 요청 파라미터

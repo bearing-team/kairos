@@ -269,6 +269,8 @@ SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, up
 
 ## 9. 환경 변수
 
+- `ANTHROPIC_API_KEY`·`SLACK_WEBHOOK_URL`·`BIZINFO_API_KEY`·`DATA_GO_KR_SERVICE_KEY`는 화면(회사 프로필 → 연결 키)에서도 넣을 수 있다. DB `AppSecret`에 `AUTH_SECRET`에서 만든 키로 AES-256-GCM 암호화해 두고, `.env` 값이 있으면 그쪽이 먼저다 (`src/server/secrets.ts`)
+
 ```
 DATABASE_URL=
 AUTH_SECRET=

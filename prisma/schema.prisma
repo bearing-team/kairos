@@ -497,3 +497,14 @@ model ReviewComment {
 
   @@index([sectionId, createdAt])
 }
+
+// 화면에서 넣은 연결 키 (Anthropic·Slack·기업마당·공공데이터포털). AUTH_SECRET으로 AES-256-GCM 암호화.
+// .env에 같은 이름이 있으면 .env가 먼저다 (src/server/secrets.ts)
+model AppSecret {
+  name        String   @id // 환경 변수 이름 (ANTHROPIC_API_KEY 등)
+  ciphertext  String // base64(iv).base64(tag).base64(data)
+  last4       String // 화면 표시용 끝 4자리
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

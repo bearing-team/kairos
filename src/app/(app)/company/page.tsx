@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ExternalLink, Plus } from "lucide-react";
 import { PageHeader, PageHeaderSkeleton } from "@/components/layout/PageHeader";
 import { LinkTabs } from "@/components/ui/LinkTabs";
 import { buttonClass } from "@/components/ui/Button";
@@ -14,13 +14,17 @@ import { slackConfigured, webhookUrl } from "@/server/notify/slack";
 import { SendNowButton } from "@/components/company/NotifyPanel";
 import { SlackPreview } from "@/components/company/SlackPreview";
 import { formatKstRelative } from "@/lib/format";
+import { KeyButton } from "@/components/settings/KeyButton";
+import { KEY_INFO, keyViews } from "@/server/keyViews";
+import { SECRET_NAMES } from "@/server/secrets";
 
-type Tab = "basic" | "items" | "rules" | "notify";
+type Tab = "basic" | "items" | "rules" | "notify" | "keys";
 const TABS: { key: Tab; label: string }[] = [
   { key: "basic", label: "기본 정보" },
   { key: "items", label: "아이템 카드" },
   { key: "rules", label: "제외 규칙" },
   { key: "notify", label: "Slack 알림" },
+  { key: "keys", label: "연결 키" },
 ];
 
 export default function CompanyPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
@@ -86,6 +90,8 @@ async function CompanyContent({ searchParams }: { searchParams: Promise<{ tab?: 
       ) : null}
 
       {tab === "notify" ? <NotifySettings /> : null}
+
+      {tab === "keys" ? <KeySettings /> : null}
     </>
   );
 }
@@ -100,7 +106,11 @@ async function NotifySettings() {
     <div className="flex flex-col gap-5">
       {!configured ? (
         <p role="status" className="m-0 rounded-lg bg-[var(--status-review-bg)] px-4 py-3 text-[13px] text-urgent-text">
-          {"error" in w ? w.error : ""} · Slack에서 Incoming Webhook을 만들고 주소를 .env의 SLACK_WEBHOOK_URL에 넣은 뒤 서버를 다시 켜 주세요
+          {"error" in w ? w.error : ""} · Slack에서 Incoming Webhook을 만들고{" "}
+          <Link href="/company?tab=keys" className="font-semibold underline underline-offset-2">
+            연결 키
+          </Link>
+          에 주소를 넣어 주세요
         </p>
       ) : null}
 
@@ -152,6 +162,56 @@ async function NotifySettings() {
           </ul>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+/** 연결 키: .env가 먼저, 없으면 여기서 넣어 DB에 암호화 (src/server/secrets.ts) */
+async function KeySettings() {
+  const now = new Date();
+  const { statuses, views } = await keyViews();
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="m-0 list-none rounded-xl border border-line bg-surface p-0">
+        {SECRET_NAMES.map((name) => {
+          const s = statuses[name];
+          const info = KEY_INFO[name];
+          return (
+            <li key={name} className="flex flex-col gap-3 border-b border-line px-5 py-4 last:border-b-0 md:flex-row md:items-center md:justify-between md:px-6">
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="text-[15px] font-semibold text-ink">{info.label}</span>
+                <span className="text-[13px] text-ink-3">{info.use}</span>
+                <span className="text-[13px]">
+                  {s.broken ? (
+                    <span className="text-urgent-text">저장된 키를 읽지 못했어요 (AUTH_SECRET이 바뀜). 다시 넣어 주세요</span>
+                  ) : s.source === "none" ? (
+                    <span className="text-ink-3">
+                      없음 ·{" "}
+                      <a href={info.whereUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:text-accent-hover">
+                        {info.where}
+                        <ExternalLink size={12} strokeWidth={2} aria-hidden="true" />
+                        <span className="sr-only">(새 창)</span>
+                      </a>
+                      에서 받아요
+                    </span>
+                  ) : (
+                    <span className="text-ink-2">
+                      <span className="font-semibold tracking-[0.08em]">••••{s.last4}</span>
+                      {s.source === "env" ? " · .env에서 읽어요" : s.updatedAt ? ` · ${formatKstRelative(s.updatedAt, now)} 저장` : ""}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="flex flex-none justify-end">
+                <KeyButton k={views[name]} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="m-0 px-2 text-[13px] leading-[1.6] text-ink-3">
+        키는 저장하기 전에 실제로 한 번 확인하고, 서버 DB에 암호화해서 둬요. 화면에는 끝 4자리만 보여요. .env에 같은 키가 있으면 .env가 먼저예요.
+      </p>
     </div>
   );
 }

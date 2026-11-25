@@ -12,6 +12,8 @@ import { getSourceList, type ApiSourceRow, type BoardSourceRow } from "@/server/
 import { llmConfigured } from "@/server/llm";
 import { SOURCE_LABEL } from "@/lib/sources";
 import { formatKstRelative } from "@/lib/format";
+import { KeyButton, type KeyView } from "@/components/settings/KeyButton";
+import { keyViews } from "@/server/keyViews";
 
 export default function Page() {
   return (
@@ -21,13 +23,13 @@ export default function Page() {
   );
 }
 
-const API_ENV: Record<ApiSourceRow["key"], string> = { bizinfo: "BIZINFO_API_KEY", kstartup: "DATA_GO_KR_SERVICE_KEY" };
+const API_KEY_NAME = { bizinfo: "BIZINFO_API_KEY", kstartup: "DATA_GO_KR_SERVICE_KEY" } as const;
 
 async function Sources() {
   await connection();
   await requireUser();
   const now = new Date();
-  const { api, board } = await getSourceList(now);
+  const [{ api, board }, keys] = await Promise.all([getSourceList(now), keyViews()]);
   const llm = llmConfigured();
 
   return (
@@ -37,10 +39,13 @@ async function Sources() {
 
       <AddBoardForm />
       {!llm ? (
-        <p role="note" className="-mt-4 flex items-center gap-2 rounded-lg bg-[var(--status-review-bg)] px-4 py-3 text-[13px] text-urgent-text">
-          <AlertCircle size={16} strokeWidth={2} aria-hidden="true" />
-          게시판 글을 읽으려면 ANTHROPIC_API_KEY가 필요해요. 연결은 해 둘 수 있어요.
-        </p>
+        <div role="note" className="-mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[var(--status-review-bg)] px-4 py-3 text-[13px] text-urgent-text">
+          <span className="flex items-center gap-2">
+            <AlertCircle size={16} strokeWidth={2} aria-hidden="true" />
+            게시판 글을 읽으려면 Anthropic API 키가 필요해요. 연결은 먼저 해 둘 수 있어요.
+          </span>
+          <KeyButton k={keys.views.ANTHROPIC_API_KEY} />
+        </div>
       ) : null}
 
       <section aria-labelledby="sources-list" className="flex flex-col gap-3">
@@ -49,7 +54,7 @@ async function Sources() {
         </h2>
         <ul className="m-0 list-none overflow-hidden rounded-xl border border-line bg-surface p-0">
           {api.map((s) => (
-            <ApiRow key={s.key} s={s} now={now} />
+            <ApiRow key={s.key} s={s} now={now} k={keys.views[API_KEY_NAME[s.key]]} />
           ))}
           {board.map((b) => (
             <BoardRow key={b.id} b={b} now={now} />
@@ -97,9 +102,9 @@ const ErrorLine = ({ text }: { text: string }) => (
   </span>
 );
 
-function ApiRow({ s, now }: { s: ApiSourceRow; now: Date }) {
+function ApiRow({ s, now, k }: { s: ApiSourceRow; now: Date; k: KeyView }) {
   const status = !s.connected ? (
-    <span className="text-ink-3">API 키가 없어 건너뛰어요 · .env의 {API_ENV[s.key]}</span>
+    <span className="text-ink-3">{k.broken ? "저장된 키를 읽지 못했어요. 다시 넣어 주세요" : "API 키를 넣으면 매일 가져와요"}</span>
   ) : s.lastError ? (
     <ErrorLine text={`${s.lastAt ? `${formatKstRelative(s.lastAt, now)} ` : ""}불러오기 실패 · ${s.lastError}`} />
   ) : s.lastAt ? (
@@ -119,9 +124,12 @@ function ApiRow({ s, now }: { s: ApiSourceRow; now: Date }) {
       right={
         <>
           <Count n={s.count} source={s.key} />
-          <span className={`flex h-7 items-center rounded-full px-3 text-[12px] font-semibold ${s.connected ? "bg-[var(--status-submitted-bg)] text-[var(--status-submitted-fg)]" : "bg-chip text-ink-3"}`}>
-            {s.connected ? "키 연결됨" : "키 없음"}
-          </span>
+          {s.connected ? (
+            <span className="flex h-7 items-center rounded-full bg-[var(--status-submitted-bg)] px-3 text-[12px] font-semibold whitespace-nowrap text-[var(--status-submitted-fg)]">
+              키 ••••{k.last4}
+            </span>
+          ) : null}
+          <KeyButton k={k} />
         </>
       }
     />

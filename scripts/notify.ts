@@ -3,10 +3,12 @@
 //   deadline 오늘 보낼 마감 알림(D-7/D-3/D-1)을 보낸다 (이미 보낸 구간은 빼고)
 //   --dry-run  보내지 않고 메시지만 출력
 import "dotenv/config";
+import { ensureSecrets } from "@/server/secrets";
 import { prisma } from "@/server/db";
 import { describeSend, sendDeadlineAlerts, sendDigest } from "@/server/notify/run";
 
 async function main() {
+  await ensureSecrets(true); // 화면에서 넣은 연결 키
   const kind = process.argv[2];
   const dryRun = process.argv.includes("--dry-run");
   if (kind !== "digest" && kind !== "deadline") throw new Error("사용법: pnpm notify <digest|deadline> [--dry-run]");

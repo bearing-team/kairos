@@ -65,11 +65,11 @@ export function parseBizinfoResponse(body: unknown): NormalizedAnnouncement[] {
 }
 
 /** 마감 전 공고 전체를 가져온다 (원본 응답도 돌려줘서 fixture 저장에 쓴다) */
-export async function fetchBizinfo(apiKey: string): Promise<{ body: unknown; items: NormalizedAnnouncement[] }> {
+export async function fetchBizinfo(apiKey: string, { count = 0 } = {}): Promise<{ body: unknown; items: NormalizedAnnouncement[] }> {
   const url = new URL(BIZINFO_URL);
   url.searchParams.set("crtfcKey", apiKey);
   url.searchParams.set("dataType", "json");
-  url.searchParams.set("searchCnt", "0"); // 0 = 전체
+  url.searchParams.set("searchCnt", String(count)); // 0 = 전체. 키 확인은 1건만
 
   const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new SourceError("bizinfo", `HTTP ${res.status}`);
@@ -82,5 +82,8 @@ export async function fetchBizinfo(apiKey: string): Promise<{ body: unknown; ite
     const err = text.match(/<reqErr><!\[CDATA\[(.*?)\]\]><\/reqErr>/)?.[1];
     throw new SourceError("bizinfo", err ?? "JSON이 아닌 응답을 받았어요");
   }
+  // 키 오류가 JSON으로 오기도 한다: {"reqErr":"존재하지 않는 인증키 입니다."} (2026-11-26 확인)
+  const reqErr = (body as { reqErr?: unknown } | null)?.reqErr;
+  if (typeof reqErr === "string" && reqErr.trim()) throw new SourceError("bizinfo", reqErr.trim());
   return { body, items: parseBizinfoResponse(body) };
 }

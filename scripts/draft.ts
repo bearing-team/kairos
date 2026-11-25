@@ -1,11 +1,13 @@
 // pnpm draft <공고 id | 진행(application) id> — 첨부를 받아 초안 새 버전을 만든다 (상태는 바꾸지 않음)
 import "dotenv/config";
+import { ensureSecrets } from "@/server/secrets";
 import { prisma } from "@/server/db";
 import { getCompany } from "@/server/company";
 import { createDraft, runDraft } from "@/server/drafting/run";
 import { llmConfigured } from "@/server/llm";
 
 async function main() {
+  await ensureSecrets(true); // 화면에서 넣은 연결 키
   const id = process.argv[2];
   if (!id) throw new Error("사용법: pnpm draft <공고 id 또는 application id>");
   const company = await getCompany();

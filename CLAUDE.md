@@ -19,7 +19,7 @@
 - **외부 API는 실제 명세를 먼저 확인한다.** 문서에 "확인 필요"로 표시된 필드명, 파라미터를 추측으로 하드코딩하지 않는다. 응답 샘플을 `fixtures/`에 저장하고 그걸로 파서를 테스트한다.
 - **LLM 출력은 항상 구조화(JSON 스키마)하고 검증한다.** 점수·근거·초안 섹션 모두.
 - **지어낸 사실을 초안에 넣지 않는다.** 회사 프로필에 없는 숫자, 실적, 고객사는 `【확인 필요: …】` 표시로 남긴다. 이건 디자인보다 중요한 규칙이다.
-- 비밀값(API 키)은 `.env`에만. 커밋 금지. `.env.example`을 유지한다.
+- 비밀값(API 키)은 `.env` 또는 화면의 "연결 키"(DB에 `AUTH_SECRET`으로 암호화)에만. 커밋 금지. `.env.example`을 유지한다. 키 값을 화면·로그에 그대로 내보내지 않는다(끝 4자리만).
 
 ## 디자인 원칙 요약 (자세한 건 DESIGN.md)
 - 밝고 부드러운 "친근한 프리미엄". 결: 토스, 애플, 글로벌 SaaS
@@ -59,6 +59,12 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 - 폼은 `<form action={action} onSubmit={submitWith(action)}>` (`src/components/form/useFormAction.ts`). React 19가 액션 후 폼을 비워 검증 오류 때 입력이 사라지는 걸 막는다
 - `usePathname()` 쓰는 클라이언트 컴포넌트는 Suspense 안에 둔다 (cacheComponents 빌드 오류)
 - 스키마를 바꾸면 dev 서버를 재시작한다 (전역에 남은 이전 Prisma 클라이언트)
+
+## 연결 키
+- `ANTHROPIC_API_KEY`, `SLACK_WEBHOOK_URL`, `BIZINFO_API_KEY`, `DATA_GO_KR_SERVICE_KEY`는 `src/server/secrets.ts`의 `secret(name)`으로만 읽는다 (`process.env` 직접 읽기 금지). `.env`가 먼저, 없으면 화면에서 넣은 값(`AppSecret`, AES-256-GCM)
+- 화면: 회사 프로필 → "연결 키" 탭, 공고 소스 화면의 기본 소스 줄·Anthropic 안내. 저장 전에 실제로 한 번 확인(`src/server/secretCheck.ts`). Slack은 메시지가 가므로 주소 형식만
+- 캐시는 `ensureSecrets()`(1분). 웹은 `requireUser()`가, 워커는 작업마다, tsx 스크립트는 `main()` 첫 줄에서 부른다. 새 스크립트도 그렇게
+- `AUTH_SECRET`을 바꾸면 저장된 키를 못 읽는다 → 화면에 "다시 넣어 주세요"
 
 ## 소싱 (M1)
 - 확인된 API 명세: `docs/sources/bizinfo.md`, `docs/sources/kstartup.md`. "아직 확인 못 한 것"은 실제 응답(`pnpm sync:probe`)으로 확인 후 파서를 좁힌다

@@ -1,10 +1,12 @@
 // pnpm score [개수|all] — 하드필터를 다시 돌리고 점수 대기 공고를 매긴다 (기본 SCORE_MAX_PER_RUN, 30)
 import "dotenv/config";
+import { ensureSecrets } from "@/server/secrets";
 import { prisma } from "@/server/db";
 import { describeMatch } from "@/server/matching/pipeline";
 import { refreshMatches, scorePending } from "@/server/matching/run";
 
 async function main() {
+  await ensureSecrets(true); // 화면에서 넣은 연결 키
   const arg = process.argv[2];
   const limit = arg === "all" ? 100_000 : arg ? Number(arg) : undefined;
   if (limit !== undefined && !(limit >= 0)) throw new Error("개수는 숫자 또는 all");

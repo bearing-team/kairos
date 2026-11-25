@@ -1,11 +1,13 @@
 // pnpm sync [bizinfo|kstartup|boards] — 공고 소싱 1회 실행 (생략하면 전부)
 import "dotenv/config";
+import { ensureSecrets } from "@/server/secrets";
 import { API_SOURCES, SOURCE_LABEL, syncAll, type ApiSource } from "@/server/sources/sync";
 import { prisma } from "@/server/db";
 import { describeMatch, matchAfterSync } from "@/server/matching/pipeline";
 import { checkAllBoards } from "@/server/sources/boards";
 
 async function main() {
+  await ensureSecrets(true); // 화면에서 넣은 연결 키
   const arg = process.argv[2];
   if (arg && arg !== "boards" && !API_SOURCES.includes(arg as ApiSource)) throw new Error(`알 수 없는 소스: ${arg} (${[...API_SOURCES, "boards"].join(", ")})`);
   const results = arg === "boards" ? [] : await syncAll(arg ? [arg as ApiSource] : API_SOURCES);
