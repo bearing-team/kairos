@@ -18,6 +18,7 @@ export type NormalizedAnnouncement = {
   category: string | null;
   hashtags: string[];
   applyUrl: string | null;
+  boardSourceId?: string | null; // source=board일 때
   attachments: { fileName: string; url: string; kind: AttachmentKind }[];
   raw: Record<string, unknown>;
 };

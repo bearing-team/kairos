@@ -1,4 +1,4 @@
-import "server-only";
+// server-only를 붙이지 않는다: 게시판 확인(boards.ts)이 워커·tsx에서도 쓴다
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { getLlm, llmConfigured, MODELS } from "@/server/llm";

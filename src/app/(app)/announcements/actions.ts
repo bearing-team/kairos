@@ -11,30 +11,7 @@ import { extractFromUrl, type ExtractResult } from "@/server/sources/manual";
 import { normalizeUrl } from "@/server/sources/fetchPage";
 import { parseKstDate } from "@/server/sources/dates";
 import { upsertAnnouncements } from "@/server/sources/upsert";
-import { syncAll, SOURCE_LABEL } from "@/server/sources/sync";
 import { prisma } from "@/server/db";
-
-// ── 새 공고 가져오기 (API 소싱 즉시 실행) ────────────
-
-export type SyncState = { ok: boolean; message: string } | null;
-
-export async function runSyncNow(_prev: SyncState): Promise<SyncState> {
-  await requireUser();
-  const results = await syncAll();
-  const ran = results.filter((r) => !r.skipped);
-  if (ran.length === 0) return { ok: false, message: "API 키가 없어 가져올 수 있는 소스가 없어요" };
-  // 규칙 검사는 바로, LLM 점수는 응답을 보낸 뒤 뒤에서 (SCORE_MAX_PER_RUN개씩)
-  const refresh = await refreshMatches();
-  if (refresh.toScore && llmConfigured()) after(() => scorePending().catch((e) => console.error("[score]", e)));
-  revalidatePath("/", "layout");
-  const created = ran.reduce((n, r) => n + r.created, 0);
-  const failed = ran.filter((r) => !r.ok).map((r) => SOURCE_LABEL[r.source]);
-  if (failed.length === ran.length) return { ok: false, message: `${failed.join(", ")} 불러오기에 실패했어요` };
-  return {
-    ok: failed.length === 0,
-    message: `새 공고 ${created}건을 가져왔어요${failed.length ? ` · ${failed.join(", ")}는 실패` : ""}`,
-  };
-}
 
 // ── URL로 추가 ─────────────────────────────
 

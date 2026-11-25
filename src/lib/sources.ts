@@ -4,4 +4,5 @@ export const SOURCE_LABEL: Record<string, string> = {
   kstartup: "K-Startup",
   manual: "직접 추가",
   newsletter: "뉴스레터",
+  board: "게시판",
 };

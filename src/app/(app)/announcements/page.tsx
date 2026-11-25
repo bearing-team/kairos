@@ -1,14 +1,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { AlertCircle, Plus } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { PageHeader, PageHeaderSkeleton } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { LinkTabs } from "@/components/ui/LinkTabs";
-import { buttonClass } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AnnouncementRow } from "@/components/announcements/AnnouncementRow";
-import { SyncButton } from "@/components/announcements/SyncButton";
+import { SourcesButton } from "@/components/announcements/SourcesButton";
 import { LIST_STATUS, listAnnouncements, syncStatus, type ListStatus } from "@/server/announcements";
 import { SOURCE_LABEL } from "@/server/sources/sync";
 import { formatKstRelative } from "@/lib/format";
@@ -16,7 +15,7 @@ import { requireUser } from "@/server/session";
 import type { AnnouncementSource } from "@/generated/prisma/client";
 
 type SP = { q?: string; source?: string; status?: string; sort?: string; closed?: string; page?: string };
-const SOURCES: AnnouncementSource[] = ["bizinfo", "kstartup", "manual"];
+const SOURCES: AnnouncementSource[] = ["bizinfo", "kstartup", "board", "manual"];
 const STATUS_TABS: [ListStatus, string][] = [["new", "새 공고"], ["progress", "진행 중"], ["done", "제출·결과"], ["excluded", "제외"]];
 const SORTS: ["score" | "deadline" | "recent", string][] = [["score", "적합도순"], ["deadline", "마감 임박순"], ["recent", "최근 등록순"]];
 
@@ -63,11 +62,7 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
               {sort !== "score" ? <input type="hidden" name="sort" value={sort} /> : null}
               <SearchInput defaultValue={sp.q} />
             </form>
-            <Link href="/announcements/new" className={buttonClass("soft", "md", "w-full md:w-auto")}>
-              <Plus size={16} strokeWidth={2.2} aria-hidden="true" />
-              주소로 추가
-            </Link>
-            <SyncButton />
+            <SourcesButton />
           </>
         }
       />
@@ -75,7 +70,7 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
       {sync.failing.length ? (
         <div role="alert" className="flex items-center gap-2 rounded-lg bg-[var(--status-review-bg)] px-4 py-3 text-[13px] text-urgent-text">
           <AlertCircle size={16} strokeWidth={2} aria-hidden="true" />
-          {sync.failing.map((s) => SOURCE_LABEL[s]).join(", ")} 불러오기에 실패했어요 · 다시 시도하려면 새 공고 가져오기를 눌러 주세요
+          {sync.failing.map((s) => SOURCE_LABEL[s]).join(", ")} 불러오기에 실패했어요 · 새 공고 가져오기에서 다시 시도할 수 있어요
         </div>
       ) : null}
 
@@ -124,7 +119,7 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
         ) : (
           <EmptyState
             title="아직 가져온 공고가 없어요"
-            description="새 공고 가져오기를 누르면 기업마당과 K-Startup에서 접수 중인 공고를 모아요. API 키는 .env에 넣어 주세요."
+            description="새 공고 가져오기에서 기업마당·K-Startup을 가져오거나 기관 게시판을 연결해 주세요."
           />
         )
       ) : (

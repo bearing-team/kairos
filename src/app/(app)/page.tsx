@@ -6,7 +6,7 @@ import { PageHeader, PageHeaderSkeleton } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { LinkTabs } from "@/components/ui/LinkTabs";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { SyncButton } from "@/components/announcements/SyncButton";
+import { SourcesButton } from "@/components/announcements/SourcesButton";
 import { AnnouncementRow } from "@/components/announcements/AnnouncementRow";
 import { FocusHeroCard } from "@/components/home/FocusHeroCard";
 import { NewMatchCard, UrgentCard } from "@/components/home/SideCards";
@@ -49,7 +49,7 @@ async function HomeContent({ searchParams }: { searchParams: Promise<SP> }) {
             <form action="/announcements" className="w-full md:w-auto">
               <SearchInput />
             </form>
-            <SyncButton />
+            <SourcesButton />
           </>
         }
       />

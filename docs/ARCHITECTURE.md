@@ -139,6 +139,17 @@ SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, up
 ### 4.3 URL 수동 추가
 - `POST /api/announcements/from-url` → 페이지 fetch → 본문 추출(readability) → LLM으로 공고 필드 구조화(JSON 스키마) → 사람이 확인 후 저장
 
+- 본문은 메뉴·스크립트만 걷어 낸 페이지 전체 글자를 쓴다(readability는 기업마당 상세의 기관·신청기간 표를 잘라 냄). 60,000자를 넘을 때만 readability로 줄인다
+
+### 4.3.1 게시판 소스 (직접 연결)
+- 화면: 헤더 "새 공고 가져오기"(+) → `/announcements/sources`. 기본 API 소스(기업마당·K-Startup) 상태와 연결한 게시판 목록, 게시판 연결·지금 확인·매일 확인 끄기·연결 끊기, "지금 모두 가져오기"
+- 모델 `BoardSource`(목록 주소, `knownLinks`, `checkingAt`, 마지막 결과). 찾은 공고는 `source=board`, `externalId=글 주소`, `boardSourceId`
+- 흐름(`src/server/sources/boards.ts`의 `checkBoard`): 목록 HTML → `readListPage`(글 후보 링크 + 그 줄 글자) → 처음 보는 링크만 `board-list.v1`(LLM, 번호로만 고르게 해 주소를 지어내지 못함) → 고른 글을 `extractFromUrl`로 정리 → 마감 지난 글은 건너뛰고 저장. 한 번에 `BOARD_MAX_PER_RUN`개, 남은 건 다음 확인 때
+- 판단이 끝난 링크(공고 아님·저장·이미 있음)는 `knownLinks`에 넣어 다시 LLM에 보내지 않는다. 글을 열다 실패한 건 남겨 두고 다시
+- 글을 스크립트(onclick·`#`)로 여는 게시판(예: 중기부)은 연결할 때 거절하고 한 건씩 주소로 추가하게 안내한다
+- 화면에서 연결·지금 확인은 `claimBoard`로 확인 중 표시를 먼저 잡고 `after()`에서 돌린다. 화면은 확인 중이면 4초마다 새로 읽는다
+- 워커: 매일 08:10 KST 켜 둔 게시판 전부. 수동: `pnpm sync boards`
+
 ### 4.4 공통 처리
 - 수집 → `Announcement` upsert(`source+externalId`) → `dedupeKey = normalize(title) + organization + applyEnd`로 소스 간 병합 → 신규·변경분만 `match:score` 큐에 넣기
 - 원본 응답은 `raw`에 저장하고, 개발 중 샘플은 `fixtures/bizinfo/*.json`, `fixtures/kstartup/*.json`로 커밋해서 파서 테스트에 쓴다

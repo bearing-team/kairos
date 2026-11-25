@@ -4,6 +4,7 @@ import PgBoss from "pg-boss";
 import { QUEUES, SCHEDULES, TZ } from "@/server/jobs/queues";
 import { SOURCE_LABEL, syncSource, type ApiSource } from "@/server/sources/sync";
 import { describeMatch, matchAfterSync } from "@/server/matching/pipeline";
+import { checkAllBoards } from "@/server/sources/boards";
 import { describeSend, sendDeadlineAlerts, sendDigest } from "@/server/notify/run";
 
 async function main() {
@@ -23,6 +24,11 @@ async function main() {
   };
   await boss.work(QUEUES.syncBizinfo, syncHandler("bizinfo"));
   await boss.work(QUEUES.syncKstartup, syncHandler("kstartup"));
+  await boss.work(QUEUES.syncBoards, async () => {
+    const rs = await checkAllBoards();
+    for (const r of rs) console.log(`[board] ${r.name}: ${r.ok ? r.note : r.skipped ? `건너뜀 — ${r.note}` : `실패 — ${r.error}`}`);
+    if (rs.some((r) => r.created)) console.log(`[match] ${describeMatch(await matchAfterSync())}`);
+  });
   // 점수 대기분을 조금씩 소화 (한 번에 SCORE_MAX_PER_RUN개)
   await boss.work(QUEUES.scorePending, async () => {
     console.log(`[score] ${describeMatch(await matchAfterSync())}`);
