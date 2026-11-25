@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { AlertCircle, Database, ExternalLink, Globe, LoaderCircle } from "lucide-react";
+import { AlertCircle, ChevronRight, Database, ExternalLink, Globe, LoaderCircle, Newspaper } from "lucide-react";
 import { PageHeader, PageHeaderSkeleton } from "@/components/layout/PageHeader";
 import { AddBoardForm } from "@/components/sources/AddBoardForm";
+import { AddNewsletterForm } from "@/components/sources/AddNewsletterForm";
 import { BoardActions } from "@/components/sources/BoardActions";
 import { SyncAllButton } from "@/components/sources/SyncAllButton";
 import { DraftPoller } from "@/components/draft/DraftPoller";
 import { requireUser } from "@/server/session";
-import { getSourceList, type ApiSourceRow, type BoardSourceRow } from "@/server/sourceList";
+import { getSourceList, type ApiSourceRow, type BoardSourceRow, type NewsletterIssueRow } from "@/server/sourceList";
 import { llmConfigured } from "@/server/llm";
 import { SOURCE_LABEL } from "@/lib/sources";
 import { formatKstRelative } from "@/lib/format";
@@ -29,7 +30,7 @@ async function Sources() {
   await connection();
   await requireUser();
   const now = new Date();
-  const [{ api, board }, keys] = await Promise.all([getSourceList(now), keyViews()]);
+  const [{ api, board, newsletter, newsletterCount }, keys] = await Promise.all([getSourceList(now), keyViews()]);
   const llm = llmConfigured();
 
   return (
@@ -61,6 +62,25 @@ async function Sources() {
           ))}
         </ul>
         {board.length === 0 ? <p className="m-0 px-2 text-[13px] text-ink-3">아직 연결한 게시판이 없어요. 위에서 기관 공고 목록 주소를 넣어 주세요.</p> : null}
+      </section>
+
+      <AddNewsletterForm />
+      <section aria-labelledby="newsletter-list" className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="newsletter-list" className="m-0 text-[20px] leading-[1.4] font-bold">
+            가져온 뉴스레터
+          </h2>
+          {newsletterCount ? <Count n={newsletterCount} source="newsletter" /> : null}
+        </div>
+        {newsletter.length ? (
+          <ul className="m-0 list-none overflow-hidden rounded-xl border border-line bg-surface p-0">
+            {newsletter.map((n) => (
+              <IssueRow key={n.id} n={n} now={now} />
+            ))}
+          </ul>
+        ) : (
+          <p className="m-0 px-2 text-[13px] text-ink-3">아직 가져온 뉴스레터가 없어요.</p>
+        )}
       </section>
     </>
   );
@@ -171,5 +191,27 @@ function BoardRow({ b, now }: { b: BoardSourceRow; now: Date }) {
         </>
       }
     />
+  );
+}
+
+function IssueRow({ n, now }: { n: NewsletterIssueRow; now: Date }) {
+  const c = n.counts;
+  const parts = [c.grant && `지원사업 ${c.grant}`, c.event && `행사 ${c.event}`, c.news && `뉴스 ${c.news}`, c.investment && `투자 ${c.investment}`].filter(Boolean).join(" · ");
+  return (
+    <li className="border-b border-line last:border-b-0">
+      <Link href={`/announcements/sources/newsletters/${n.id}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-subtle md:px-6">
+        <span aria-hidden="true" className="flex size-10 flex-none items-center justify-center rounded-lg bg-surface-subtle text-ink-2">
+          <Newspaper size={18} strokeWidth={2} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="truncate text-[15px] font-semibold text-ink">{n.title}</span>
+          <span className="text-[13px] text-ink-3">{parts}</span>
+          <span className="text-[13px] text-ink-2">
+            {formatKstRelative(n.fetchedAt, now)} 가져옴 · 새로 {c.created}건{c.existing ? ` · 이미 있음 ${c.existing}건` : ""}
+          </span>
+        </span>
+        <ChevronRight size={18} strokeWidth={2} aria-hidden="true" className="flex-none text-ink-3" />
+      </Link>
+    </li>
   );
 }

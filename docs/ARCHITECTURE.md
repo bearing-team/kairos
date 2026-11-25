@@ -150,6 +150,15 @@ SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, up
 - 화면에서 연결·지금 확인은 `claimBoard`로 확인 중 표시를 먼저 잡고 `after()`에서 돌린다. 화면은 확인 중이면 4초마다 새로 읽는다
 - 워커: 매일 08:10 KST 켜 둔 게시판 전부. 수동: `pnpm sync boards`
 
+### 4.3.2 뉴스레터 붙여 넣기
+- 화면: `/announcements/sources`의 "뉴스레터 붙여 넣기" → 바로 읽어 저장(수 초) → 호 화면 `/announcements/sources/newsletters/[id]`(구역별 모든 줄, 새로 추가·이미 있음, 원문 링크)
+- 지금은 피트페이퍼(featpaper.com) 공유 링크만. `featpaper.ts`: 공유 페이지의 `og:url`(문서 코드)·`og:image`(PDF uuid) → 뷰어가 쓰는 `/api/pdf/resource-file/<uuid>`(원본 PDF 주소)·`/api/pdf/annotations/<uuid>`(페이지별 링크 상자, 0~1 좌표). 공식 API가 아니어서 바뀌면 화면에 이유가 뜬다
+- `newsletterPdf.ts`: pdf.js 글자 조각을 좌표로 줄로 묶고(`readPdfLines`), 표의 줄마다 오른쪽 링크(★) 상자의 세로 위치에 가까운 줄을 한 항목으로 묶는다(여러 줄 셀 대응). 구역 제목(`01 지원사업 …`)으로 분류(지원사업·행사·뉴스·투자)
+- 분류 없이 **모든 줄을 공고로** 넣는다 (`source=newsletter`, `category`=분류, `newsletterIssueId`). 지원사업은 마감일, 행사는 행사일(기간이면 끝날)을 `applyEnd`로 → 지나면 기본 목록에서 빠진다. 뉴스·투자는 날짜 없음, 점수 안 매김(`NEWSLETTER_UNSCORED`), 목록에서는 바 대신 게시일
+- 중복: 링크가 기업마당(`pblancId`)·K-Startup(`pbancSn`) 상세면 `externalId=<소스>:<ID>`. 그 공고가 이미 있으면 새로 안 만들고 "이미 있음". 나중에 API로 들어오면 `upsertAnnouncements`가 같은 ID·같은 주소·같은 dedupeKey의 뉴스레터 공고를 `duplicateOfId`로 묶는다. 뉴스레터 공고는 대표가 되지 않는다
+- 모델 `NewsletterIssue`(key=`featpaper:<코드>` unique, items=줄+저장 결과). 같은 링크를 다시 넣으면 갱신. 호 기록을 지워도 공고는 남는다
+- 테스트 원본은 `fixtures/newsletters/`(공유 페이지·링크 JSON·PDF에서 뽑은 줄 JSON. PDF 자체는 6.8MB라 커밋 안 함)
+
 ### 4.4 공통 처리
 - 수집 → `Announcement` upsert(`source+externalId`) → `dedupeKey = normalize(title) + organization + applyEnd`로 소스 간 병합 → 신규·변경분만 `match:score` 큐에 넣기
 - 원본 응답은 `raw`에 저장하고, 개발 중 샘플은 `fixtures/bizinfo/*.json`, `fixtures/kstartup/*.json`로 커밋해서 파서 테스트에 쓴다

@@ -10,6 +10,7 @@ import { checkBoard, claimBoard } from "@/server/sources/boards";
 import { fetchHtml, normalizeUrl } from "@/server/sources/fetchPage";
 import { canonicalLink, readListPage } from "@/server/sources/boardList";
 import { syncAll, SOURCE_LABEL } from "@/server/sources/sync";
+import { importNewsletter } from "@/server/sources/newsletter";
 
 export type SourceState = { ok: boolean; message: string; errors?: Record<string, string> } | null;
 
@@ -121,4 +122,42 @@ export async function syncEverythingNow(_prev: SourceState): Promise<SourceState
   ].filter(Boolean);
   if (!parts.length) return { ok: false, message: "가져올 수 있는 소스가 없어요 (API 키·ANTHROPIC_API_KEY 확인)" };
   return { ok: failed.length === 0, message: parts.join(" · ") };
+}
+
+/** 뉴스레터 붙여 넣기: 읽어서 바로 저장(수 초) → 규칙 검사 → 점수는 응답 뒤에 */
+export async function addNewsletter(_prev: SourceState, fd: FormData): Promise<SourceState & { issueId?: string }> {
+  const user = await requireUser();
+  const rawUrl = String(fd.get("newsletterUrl") ?? "").trim();
+  try {
+    normalizeUrl(rawUrl);
+  } catch {
+    return { ok: false, message: "입력값을 확인해 주세요", errors: { newsletterUrl: "올바른 주소를 넣어 주세요 (https://로 시작)" } };
+  }
+  let r: Awaited<ReturnType<typeof importNewsletter>>;
+  try {
+    r = await importNewsletter(rawUrl, user.id);
+  } catch (e) {
+    console.error("[newsletter]", e);
+    return { ok: false, message: "입력값을 확인해 주세요", errors: { newsletterUrl: e instanceof Error ? e.message : "뉴스레터를 읽지 못했어요" } };
+  }
+  if (r.announcementIds.length) {
+    await refreshMatches({ announcementIds: r.announcementIds });
+    if (llmConfigured()) after(() => scorePending().then(() => undefined).catch((e) => console.error("[newsletter score]", e)));
+  }
+  revalidatePath(PATH);
+  revalidatePath("/announcements");
+  const c = r.counts;
+  return {
+    ok: true,
+    issueId: r.issueId,
+    message: `${r.title} · ${c.total}건 읽음 (새로 ${c.created}건${c.existing ? ` · 이미 있음 ${c.existing}건` : ""})`,
+  };
+}
+
+export async function deleteNewsletter(id: string): Promise<SourceState> {
+  await requireUser();
+  // 공고는 남긴다 (진행 중인 상태·초안이 있을 수 있음). 호 기록만 지운다
+  await prisma.newsletterIssue.deleteMany({ where: { id } });
+  revalidatePath(PATH);
+  return { ok: true, message: "지웠어요" };
 }

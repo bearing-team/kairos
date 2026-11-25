@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html data-theme="openai">
+
+<head>
+  <script>
+    // Node.js polyfills for browser
+    window.global = window;
+    window.process = { env: {} };
+  </script>
+
+  <!-- 뷰어(공유 문서 열람) 경로 판정: 개인정보처리방침 9조 — 뷰어 화면에서는 GA/GTM 을 로드하지 않고,
+       Clarity 는 문서 내용·입력값을 마스킹한다. 경로 프리픽스는 src/pages/viewer/index.tsx·dataroom 라우트와 동일.
+       한계: 최초 문서 로드 시 1회 평가한다. 뷰어 화면은 공유 링크(새 문서 로드)로 진입하므로 충분하며,
+       비뷰어 경로에서 뷰어로 이어지는 SPA 내부 리다이렉트(/library/example)는 게이트 대상에 포함한다. -->
+  <script>
+    // 정규식은 src/pages/viewer-analytics-gate.test.ts 가 viewerConfig·dataRoomConfig 와 대조한다.
+    window.__FP_VIEWER_PATH_RE__ = /^\/(viewer|v|u|g|z|l|n|m|d|privacy-policy|dataroom|library\/example)(\/|$)|^\/[^/]+\/dataroom(\/|$)/i;
+    window.__FP_IS_VIEWER__ = window.__FP_VIEWER_PATH_RE__.test(window.location.pathname);
+    // 사전 동의가 필요한 지역(EU·영국, 브라우저 시간대 Europe/* 기준)에서는 비필수 트래커를 전부 로드하지 않는다 (처리방침 9조).
+    // EU·EEA·영국 영토의 IANA 시간대: Europe/* 외에 카나리아·마데이라·아소르스(스페인·포르투갈), 아이슬란드·페로,
+    // 키프로스(Asia/Nicosia·Famagusta), 세우타(Africa/Ceuta), 스발바르·얀마옌(Arctic/Longyearbyen·Atlantic/Jan_Mayen), 프랑스 해외영토(마르티니크·과들루프·기아나·레위니옹·마요트 등)를 포함한다.
+    // 정규식은 src/pages/viewer-analytics-gate.test.ts 가 대표 존으로 검증한다.
+    window.__FP_CONSENT_TZ_RE__ = /^(Europe\/|Africa\/Ceuta|Arctic\/Longyearbyen|Atlantic\/(Canary|Madeira|Azores|Reykjavik|Faroe|Faeroe|Jan_Mayen)|Asia\/(Nicosia|Famagusta)|America\/(Martinique|Guadeloupe|Cayenne|Marigot|St_Barthelemy|Miquelon)|Indian\/(Reunion|Mayotte))/;
+    window.__FP_CONSENT_REQUIRED__ = (function () {
+      try { return window.__FP_CONSENT_TZ_RE__.test(Intl.DateTimeFormat().resolvedOptions().timeZone || ""); } catch (e) { return false; }
+    })();
+    window.__FP_LOAD_ANALYTICS__ = !window.__FP_IS_VIEWER__ && !window.__FP_CONSENT_REQUIRED__;
+  </script>
+  <!-- Google Tag Manager (뷰어 경로 제외) -->
+  <script>
+    if (window.__FP_LOAD_ANALYTICS__) (function (w, d, s, l, i) {
+      w[l] = w[l] || [];
+      w[l].push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+      var f = d.getElementsByTagName(s)[0],
+        j = d.createElement(s),
+        dl = l != "dataLayer" ? "&l=" + l : "";
+      j.async = true;
+      j.src = "https://www.googletagmanager.com/gtm.js?id=" + i + dl;
+      f.parentNode.insertBefore(j, f);
+    })(window, document, "script", "dataLayer", "GTM-TX3T5SPP");
+  </script>
+  <!-- End Google Tag Manager -->
+  <meta charset="utf-8" />
+
+    <meta name="robots" content="noindex" />
+    <title>센서블박스_위클리_2026년_11월_3주차 - Feat Paper</title>
+    <meta name="description" content="센서블박스_위클리_2026년_11월_3주차" />
+    <meta property="og:url" content="https://featpaper.com/l/CGhhkscp" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="센서블박스_위클리_2026년_11월_3주차" />
+    <meta property="og:description" content="센서블박스_위클리_2026년_11월_3주차" />
+    <meta property="og:image" content="https://d18v15qu56dl4h.cloudfront.net/pdf/de93c822-6dbc-4396-a79d-b7a8efa1cdeb/small/1" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="센서블박스_위클리_2026년_11월_3주차" />
+    <meta name="twitter:description" content="센서블박스_위클리_2026년_11월_3주차" />
+    <meta name="twitter:image" content="https://d18v15qu56dl4h.cloudfront.net/pdf/de93c822-6dbc-4396-a79d-b7a8efa1cdeb/small/1" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"DigitalDocument","name":"센서블박스_위클리_2026년_11월_3주차","description":"센서블박스_위클리_2026년_11월_3주차","url":"https://featpaper.com/l/CGhhkscp","image":"https://d18v15qu56dl4h.cloudfront.net/pdf/de93c822-6dbc-4396-a79d-b7a8efa1cdeb/small/1","encodingFormat":"application/pdf","isAccessibleForFree":false,"numberOfPages":5,"datePublished":"2026-11-16T01:29:06.919","provider":{"@type":"Organization","name":"Feat Paper","url":"https://featpaper.com"},"publisher":{"@type":"Organization","name":"Feat Paper","url":"https://featpaper.com"}}</script>
+  
+
+  <link href="https://resource.featpaper.com/resource/favicon-s.ico" rel="icon" />
+
+  <link href="https://resource.featpaper.com/resource/favicon-s.ico" rel="apple-touch-icon" />
+
+  <meta name="viewport"
+    content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, interactive-widget=resizes-content, width=device-width,height=device-height, target-densitydpi=device-dpi" />
+
+  <!-- 안드로이드 웹뷰 iframe 키보드 이슈 해결을 위한 메타 태그 -->
+  <meta name="keyboard-control" content="enabled" />
+  <meta name="android-keyboard-mode" content="pan" />
+
+
+  <meta property="og:image:alt" content="피트페이퍼 이미지" />
+  <meta property="og:image:width" content="285" />
+  <meta property="og:image:height" content="167" />
+  <meta property="og:locale" content="ko_KR" />
+  <meta property="og:site_name" content="FeatPaper" />
+  <meta http-equiv="Expires" content="0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <link href="https://unpkg.com/filepond@4.32.7/dist/filepond.css" rel="stylesheet" />
+
+  <link rel="stylesheet" type="text/css" charset="UTF-8"
+    href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.6.0/slick.min.css" />
+  <link rel="stylesheet" type="text/css"
+    href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.6.0/slick-theme.min.css" />
+
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.2/animate.min.css" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Inter:wght@300;400;500;600;700;900&family=Noto+Sans+KR:wght@400;500;700&family=Syne:wght@400;500&family=EB+Garamond:ital,wght@1,500;1,600&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" as="style" crossorigin
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.5/dist/web/static/pretendard.css" />
+
+  <!-- jQuery -->
+  <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+  <!--
+      manifest.json provides metadata used when your web app is installed on a
+      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+    -->
+
+  <!-- Google tag (gtag.js) — 뷰어 경로 제외 -->
+  <script>
+    if (window.__FP_LOAD_ANALYTICS__) {
+      var fpGtagScript = document.createElement("script");
+      fpGtagScript.async = true;
+      fpGtagScript.src = "https://www.googletagmanager.com/gtag/js?id=G-1F6LM7DFE7";
+      document.head.appendChild(fpGtagScript);
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function gtag() {
+        dataLayer.push(arguments);
+      };
+      gtag("js", new Date());
+      gtag("config", "G-1F6LM7DFE7");
+    }
+  </script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script type="text/javascript">
+    if (!window.__FP_CONSENT_REQUIRED__) (function (c, l, a, r, i, t, y) {
+      c[a] =
+        c[a] ||
+        function () {
+          (c[a].q = c[a].q || []).push(arguments);
+        };
+      t = l.createElement(r);
+      t.async = 1;
+      t.src = "https://www.clarity.ms/tag/" + i;
+      y = l.getElementsByTagName(r)[0];
+      y.parentNode.insertBefore(t, y);
+    })(window, document, "clarity", "script", "lcoyfqxuqv");
+  </script>
+  <!--
+      Notice the use of %PUBLIC_URL% in the tags above.
+      It will be replaced with the URL of the `public` folder during the build.
+      Only files inside the `public` folder can be referenced from the HTML.
+
+      Unlike "/favicon.ico" or "favicon.ico", "favicon.ico" will
+      work correctly both with client-side routing and a non-root public URL.
+      Learn how to configure a non-root public URL by running `npm run build`.
+    -->
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    .crema-loader-bg {
+      flex: 1;
+      display: flex;
+      position: relative;
+      height: 100vh;
+      justify-content: center;
+      align-items: center;
+      background-size: cover;
+    }
+
+    .crema-loader {
+      position: relative;
+      margin: 0 auto;
+      width: 40px;
+    }
+
+    .circular {
+      animation: rotate 2s linear infinite;
+      height: 40px;
+      transform-origin: center center;
+      width: 40px;
+      margin: auto;
+    }
+
+    .path {
+      stroke-dasharray: 5, 200;
+      stroke-dashoffset: 0;
+      animation: dash 1.5s ease-in-out infinite, color 6s ease-in-out infinite;
+      stroke-linecap: round;
+    }
+
+    @keyframes rotate {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes dash {
+      0% {
+        stroke-dasharray: 1, 200;
+        stroke-dashoffset: 0;
+      }
+
+      50% {
+        stroke-dasharray: 89, 200;
+        stroke-dashoffset: -35px;
+      }
+
+      100% {
+        stroke-dasharray: 89, 200;
+        stroke-dashoffset: -124px;
+      }
+    }
+
+    @keyframes color {
+
+      100%,
+      0% {
+        stroke: #0a8fdc;
+      }
+    }
+  </style>
+  <script type="module" crossorigin src="/dashboard/assets/CCs4gSKW.js"></script>
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/BemGTDtM.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/C03My5OR.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/C6fDGGvj.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/DpxG_OFN.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/BjnzaS5_.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/DjAAToYd.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/lvlA6_sD.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/DQqcFNMI.js">
+  <link rel="modulepreload" crossorigin href="/dashboard/assets/BwTxnKje.js">
+  <link rel="stylesheet" crossorigin href="/dashboard/assets/kYM-9Pis.css">
+</head>
+
+<body>
+  <div id="root"><div id="seo-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999"></div><article data-seo-content="true"><p data-ai-hub>이 문서는 검색에 노출하지 않는 공유 문서입니다. AI 로 읽으려면 이 주소를 여세요: <a href="https://feat.page/u/XXXXXXXX/ai">https://feat.page/u/XXXXXXXX/ai</a></p></article></div>
+  <!-- 뷰어 경로: Clarity 화면 기록에서 문서 내용·입력값 전체 마스킹. body 에 걸어 포털(모달·토스트)까지 하위 전체에 적용 -->
+  <script>
+    if (window.__FP_IS_VIEWER__) document.body.setAttribute("data-clarity-mask", "true");
+  </script>
+  <!--
+  This HTML file is a template.
+  If you open it directly in the browser, you will see an empty page.
+
+  You can add webfonts, meta tags, or analytics to this file.
+  The build step will place the bundled scripts into the <body> tag.
+
+  To begin the development, run `npm start` or `yarn start`.
+  To create a production bundle, use `npm run build` or `yarn build`.
+-->
+</body>
+
+</html>

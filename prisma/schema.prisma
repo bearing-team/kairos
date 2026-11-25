@@ -167,6 +167,8 @@ model Announcement {
   duplicates        Announcement[]     @relation("Duplicate")
   boardSourceId     String? // source=board일 때 찾은 게시판
   boardSource       BoardSource?       @relation(fields: [boardSourceId], references: [id], onDelete: SetNull)
+  newsletterIssueId String? // source=newsletter일 때 마지막으로 나온 호
+  newsletterIssue   NewsletterIssue?   @relation(fields: [newsletterIssueId], references: [id], onDelete: SetNull)
   attachments       Attachment[]
   matches           Match[]
   applications      Application[]
@@ -179,6 +181,7 @@ model Announcement {
   @@index([dedupeKey])
   @@index([applyEnd])
   @@index([boardSourceId])
+  @@index([newsletterIssueId])
 }
 
 enum AttachmentKind {
@@ -507,4 +510,19 @@ model AppSecret {
   updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// 붙여 넣은 뉴스레터 한 호 (지금은 피트페이퍼 공유 링크). 표의 모든 줄을 items에 두고, 지원사업·행사 줄만 공고로 넣는다
+model NewsletterIssue {
+  id            String         @id @default(cuid())
+  key           String         @unique // 문서 코드 (피트페이퍼 og:url의 /l/<코드>)
+  url           String // 붙여 넣은 주소
+  title         String
+  pdfSrc        String?
+  items         Json // NewsletterRow[] (src/server/sources/newsletter.ts)
+  createdById   String?
+  announcements Announcement[]
+  fetchedAt     DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }

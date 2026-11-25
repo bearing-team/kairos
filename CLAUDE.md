@@ -73,6 +73,7 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 - 게시판 소스: 헤더 "새 공고 가져오기"(+) → `/announcements/sources`에서 기관 공고 목록 주소를 연결·관리. `boards.ts`의 `checkBoard()`가 목록 → 새 링크만 LLM(`board-list.v1`, 번호로만 고름) → 글마다 `extractFromUrl` → `source=board`로 저장. 판단 끝난 링크는 `BoardSource.knownLinks`. 자세한 건 ARCHITECTURE 4.3.1
 - 게시판 테스트용 목록 원본은 `fixtures/boards/`. 글을 스크립트로 여는 게시판은 연결 때 거절한다(`scriptRows`/`linkRows`)
 - `manual.ts`·`boards.ts`·`boardList.ts`는 워커에서도 쓰므로 `server-only`를 붙이지 않는다
+- 뉴스레터: `/announcements/sources`의 "뉴스레터 붙여 넣기"(지금은 피트페이퍼 링크) → `featpaper.ts`(PDF+링크 상자) → `newsletterPdf.ts`(표 줄 묶기) → `newsletter.ts`(모든 줄을 `source=newsletter` 공고로, 기업마당·K-Startup 링크는 그 ID로 중복 처리). 뉴스·투자는 점수 안 매김. 자세한 건 ARCHITECTURE 4.3.2
 
 ## 매칭 (M2)
 - 흐름: 소싱 → `src/server/matching/run.ts`의 `refreshMatches()`(하드필터 `hardFilter.ts`, LLM 없음) → `scorePending()`(LLM, 프롬프트 `src/server/prompts/score.v1.ts`). 프롬프트를 고치면 새 버전 파일을 만들고 `promptVersion`이 바뀌게 한다

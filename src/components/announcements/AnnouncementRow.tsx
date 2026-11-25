@@ -18,7 +18,8 @@ export function rowMeta(r: AppRow) {
     a.supportAmountText,
     a.regionLimit ? `${a.regionLimit} 한정` : null,
   ].filter(Boolean);
-  return parts.join(" · ") || "기관 정보 없음";
+  // 뉴스레터 항목은 기관 대신 분류(지원사업·행사·뉴스·투자)라도 보여 준다
+  return parts.join(" · ") || (a.source === "newsletter" ? a.category : null) || "기관 정보 없음";
 }
 
 /**
@@ -49,7 +50,12 @@ export function AnnouncementRow({ r, now }: { r: AppRow; now: Date }) {
           </span>
         </div>
         <div className="w-full md:w-auto md:min-w-[200px] md:flex-[2]">
-          <TimelineBar t={t} start={a.applyStart} end={a.applyEnd} muted={dimmed} />
+          {a.source === "newsletter" && !a.applyEnd ? (
+            // 뉴스·투자 소식: 접수 기간이 없으니 바 대신 게시일만
+            <span className="text-[12px] leading-[1.4] font-semibold text-ink-3">{a.applyPeriodText ?? a.category ?? "소식"}</span>
+          ) : (
+            <TimelineBar t={t} start={a.applyStart} end={a.applyEnd} muted={dimmed} />
+          )}
         </div>
         <span className="hidden w-24 flex-none justify-end md:flex">
           <StatusChip status={r.status} />

@@ -26,12 +26,20 @@ export async function upsertAnnouncements(items: NormalizedAnnouncement[], now =
     let id: string;
     if (!existing) {
       const canonical = await prisma.announcement.findFirst({
-        where: { dedupeKey: key, source: { not: item.source }, duplicateOfId: null },
+        // 뉴스레터 항목은 대표가 되지 않는다 (API·게시판 공고가 내용이 더 많다)
+        where: { dedupeKey: key, source: { notIn: [item.source, "newsletter"] }, duplicateOfId: null },
         select: { id: true },
         orderBy: { createdAt: "asc" },
       });
       const created = await prisma.announcement.create({ data: { ...data, duplicateOfId: canonical?.id ?? null } });
       id = created.id;
+      if (item.source !== "newsletter") {
+        // 먼저 뉴스레터로 들어온 같은 공고를 이 공고에 묶는다 (링크의 공고 ID가 같거나 제목·기관·마감이 같으면)
+        await prisma.announcement.updateMany({
+          where: { source: "newsletter", duplicateOfId: null, OR: [{ externalId: `${item.source}:${item.externalId}` }, { dedupeKey: key }, ...(item.url ? [{ url: item.url }] : [])] },
+          data: { duplicateOfId: id },
+        });
+      }
       result.created++;
       result.createdIds.push(id);
     } else if (existing.contentHash !== hash) {

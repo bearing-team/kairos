@@ -23,7 +23,7 @@ export const rowSelect = {
   announcement: {
     select: {
       id: true, source: true, title: true, organization: true, executingOrg: true, supportAmountText: true,
-      regionLimit: true, applyStart: true, applyEnd: true, url: true, firstSeenAt: true,
+      regionLimit: true, applyStart: true, applyEnd: true, applyPeriodText: true, category: true, url: true, firstSeenAt: true,
       _count: { select: { duplicates: true } },
     },
   },

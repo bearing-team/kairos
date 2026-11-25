@@ -16,6 +16,8 @@ export type RefreshResult = { checked: number; created: number; excluded: number
  * - 사람이 정한 상태는 건드리지 않는다. 자동 제외만 조건이 바뀌면 new로 되돌린다
  * - 통과했고 점수가 없거나 공고 내용이 바뀌었으면 점수 대기(pending)
  */
+export const NEWSLETTER_UNSCORED = ["뉴스", "투자", "기타"];
+
 export async function refreshMatches(opts: { announcementIds?: string[]; now?: Date } = {}): Promise<RefreshResult> {
   const now = opts.now ?? new Date();
   const company = await getCompany();
@@ -29,7 +31,7 @@ export async function refreshMatches(opts: { announcementIds?: string[]; now?: D
       ...(opts.announcementIds ? { id: { in: opts.announcementIds } } : {}),
     },
     select: {
-      id: true, title: true, organization: true, summary: true, target: true, regionLimit: true,
+      id: true, source: true, title: true, organization: true, summary: true, target: true, regionLimit: true,
       category: true, hashtags: true, applyEnd: true, contentHash: true,
       matches: { where: { companyId: company.id }, select: { id: true, hardFilterPassed: true, excludeReason: true, filterNotes: true, scoreStatus: true, scoredHash: true } },
       applications: { where: { companyId: company.id }, select: { id: true, status: true, autoExcluded: true } },
@@ -44,19 +46,21 @@ export async function refreshMatches(opts: { announcementIds?: string[]; now?: D
     const f = hardFilter(a, company, rules, now);
     const match = a.matches[0];
     const app = a.applications[0];
-    const needsScore = f.passed && (!match || match.scoreStatus === "skipped" || (match.scoreStatus !== "pending" && match.scoreStatus !== "running" && match.scoredHash !== a.contentHash));
+    // 뉴스레터의 뉴스·투자 소식은 목록에만 보이고 점수는 매기지 않는다 (지원할 공고가 아님)
+    const scorable = !(a.source === "newsletter" && a.category !== null && NEWSLETTER_UNSCORED.includes(a.category));
+    const needsScore = f.passed && scorable && (!match || match.scoreStatus === "skipped" || (match.scoreStatus !== "pending" && match.scoreStatus !== "running" && match.scoredHash !== a.contentHash));
 
     if (!match) {
       newMatches.push({
         announcementId: a.id, companyId: company.id, hardFilterPassed: f.passed, excludeReason: f.excludeReason,
-        filterNotes: f.notes, scoreStatus: f.passed ? "pending" : "skipped",
+        filterNotes: f.notes, scoreStatus: f.passed && scorable ? "pending" : "skipped",
       });
     } else if (match.hardFilterPassed !== f.passed || match.excludeReason !== f.excludeReason || match.filterNotes.join("\n") !== f.notes.join("\n") || needsScore) {
       await prisma.match.update({
         where: { id: match.id },
         data: {
           hardFilterPassed: f.passed, excludeReason: f.excludeReason, filterNotes: f.notes,
-          ...(f.passed ? (needsScore ? { scoreStatus: "pending", scoreError: null } : {}) : { scoreStatus: "skipped" }),
+          ...(f.passed && scorable ? (needsScore ? { scoreStatus: "pending", scoreError: null } : {}) : { scoreStatus: "skipped" }),
         },
       });
     }

@@ -15,7 +15,7 @@ import { requireUser } from "@/server/session";
 import type { AnnouncementSource } from "@/generated/prisma/client";
 
 type SP = { q?: string; source?: string; status?: string; sort?: string; closed?: string; page?: string };
-const SOURCES: AnnouncementSource[] = ["bizinfo", "kstartup", "board", "manual"];
+const SOURCES: AnnouncementSource[] = ["bizinfo", "kstartup", "board", "newsletter", "manual"];
 const STATUS_TABS: [ListStatus, string][] = [["new", "새 공고"], ["progress", "진행 중"], ["done", "제출·결과"], ["excluded", "제외"]];
 const SORTS: ["score" | "deadline" | "recent", string][] = [["score", "적합도순"], ["deadline", "마감 임박순"], ["recent", "최근 등록순"]];
 

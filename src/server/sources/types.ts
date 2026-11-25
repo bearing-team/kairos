@@ -19,6 +19,7 @@ export type NormalizedAnnouncement = {
   hashtags: string[];
   applyUrl: string | null;
   boardSourceId?: string | null; // source=board일 때
+  newsletterIssueId?: string | null; // source=newsletter일 때 (마지막으로 나온 호)
   attachments: { fileName: string; url: string; kind: AttachmentKind }[];
   raw: Record<string, unknown>;
 };
