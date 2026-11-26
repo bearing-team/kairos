@@ -34,6 +34,7 @@ pnpm install          # 의존성 + prisma generate (postinstall)
 pnpm db:up            # 로컬 Postgres (docker, 호스트 포트 5433)
 pnpm db:migrate       # 마이그레이션 + 클라이언트 생성
 pnpm db:seed          # 회사 1개(베어링(주)) 생성
+pnpm db:deploy        # 배포용: migrate deploy + 시드(회사 없을 때만). Railway 웹의 배포 전 명령
 pnpm dev              # 개발 서버 http://localhost:3000
 pnpm test             # vitest
 pnpm lint / pnpm typecheck / pnpm build
@@ -105,3 +106,9 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 - `<details>` 팝오버는 `src/components/ui/useDismiss.ts`로 바깥 클릭·Esc 닫기
 - "로/으로"는 `withRo()` (`src/lib/format.ts`)
 - Tailwind 브레이크포인트는 **rem으로만** (`--breakpoint-xl: 75rem`, 임의 값도 `min-[87.5rem]:`). px로 쓰면 sm/md(rem)보다 앞에 정렬돼 덮어써진다
+
+## 배포 (Railway)
+- 설정은 `.railway/railway.ts`(Railway IaC, `railway/iac`)만. `railway.json`/`railway.toml`은 2026-12-01부터 안 읽힘 → 만들지 않는다. 순서는 `docs/DEPLOY.md`
+- 서비스: `postgres`, `web`(볼륨 `/data`, `STORAGE_DIR=/data/storage`, 헬스체크 `/api/health`), `worker`(`pnpm worker`). Node 22
+- 비밀값은 파일에 쓰지 않고 `preserve()` (공개 저장소). 워커·배포 전 명령이 런타임에 쓰는 `prisma`·`tsx`·`dotenv`는 dependencies에 둔다
+- Slack 링크 주소: `APP_BASE_URL` → 없으면 `APP_PUBLIC_DOMAIN`/`RAILWAY_PUBLIC_DOMAIN`

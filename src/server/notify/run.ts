@@ -9,7 +9,13 @@ import { deadlineAlertText, deadlineBucket, digestText, reviewRequestText, type 
 import { postSlack, slackConfigured } from "./slack";
 
 const DAY = 86_400_000;
-const appBaseUrl = () => process.env.APP_BASE_URL?.trim().replace(/\/+$/, "") || null;
+/** Slack 링크의 앱 주소. APP_BASE_URL이 없으면 Railway 공개 도메인(워커는 APP_PUBLIC_DOMAIN으로 웹 주소를 받음) */
+const appBaseUrl = () => {
+  const explicit = process.env.APP_BASE_URL?.trim().replace(/\/+$/, "");
+  if (explicit) return explicit;
+  const domain = (process.env.APP_PUBLIC_DOMAIN || process.env.RAILWAY_PUBLIC_DOMAIN)?.trim();
+  return domain ? `https://${domain}` : null;
+};
 
 const itemSelect = {
   id: true,

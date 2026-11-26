@@ -58,6 +58,12 @@ async function LoginActions({ searchParams }: { searchParams: Promise<{ error?: 
       ) : (
         <p className="m-0 text-[13px] leading-[1.6] text-ink-3">
           Google 로그인이 아직 설정되지 않았어요. <code>.env</code>의 AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET을 채워 주세요.
+          {devLoginEnabled ? null : (
+            <>
+              {" "}
+              키 없이 둘러보려면 <code>.env</code>에 AUTH_DEV_LOGIN=1을 넣고 <code>pnpm dev</code>로 띄워 주세요 (<code>pnpm start</code>에서는 개발용 로그인이 꺼져요).
+            </>
+          )}
         </p>
       )}
 
