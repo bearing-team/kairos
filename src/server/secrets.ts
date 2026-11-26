@@ -14,6 +14,7 @@ const RELOAD_MS = 60_000;
 function cryptoKey() {
   const s = process.env.AUTH_SECRET?.trim();
   if (!s) throw new Error("AUTH_SECRET이 없어 키를 암호화할 수 없어요");
+  // 접두사는 이전 이름 그대로 둔다 (바꾸면 저장된 키를 못 읽는다)
   return createHash("sha256").update(`grant-desk:secrets:${s}`).digest();
 }
 

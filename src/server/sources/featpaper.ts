@@ -30,7 +30,7 @@ export function readFeatpaperPage(html: string, pageUrl: string): FeatpaperMeta 
 async function api<T>(path: string): Promise<T> {
   const url = new URL(path, "https://featpaper.com");
   await assertPublicHost(url);
-  const res = await fetch(url, { signal: AbortSignal.timeout(30_000), headers: { accept: "application/json", "user-agent": "Mozilla/5.0 (compatible; grant-desk/0.1)" } });
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000), headers: { accept: "application/json", "user-agent": "Mozilla/5.0 (compatible; kairos/0.1)" } });
   if (!res.ok) throw new SourceError("newsletter", `피트페이퍼 응답 오류 (HTTP ${res.status})`);
   const body = (await res.json()) as { data?: T };
   if (!body?.data) throw new SourceError("newsletter", "피트페이퍼 응답 형식이 바뀌었어요");

@@ -3,7 +3,7 @@ import { signIn, devLoginEnabled, googleConfigured } from "@/auth";
 import { LogoMark } from "@/components/layout/LogoMark";
 import { buttonClass } from "@/components/ui/Button";
 
-export const metadata = { title: "로그인 · 지원사업 데스크" };
+export const metadata = { title: "로그인 · Kairos" };
 
 const ERROR_TEXT: Record<string, string> = {
   AccessDenied: "팀 도메인 계정으로만 들어올 수 있어요. 회사 구글 계정으로 다시 시도해 주세요.",
@@ -17,7 +17,7 @@ export default function LoginPage({ searchParams }: { searchParams: Promise<{ er
         <div className="flex flex-col gap-5">
           <LogoMark size={40} />
           <div className="flex flex-col gap-2">
-            <h1 className="m-0 text-[28px] leading-[1.35] font-extrabold tracking-[-0.02em]">지원사업 데스크</h1>
+            <h1 className="m-0 text-[28px] leading-[1.35] font-extrabold tracking-[-0.02em]">Kairos</h1>
             <p className="m-0 text-[14px] leading-[1.7] text-ink-3">
               베어링 팀 계정으로 로그인하면 이번 주에 챙길 공고를 바로 볼 수 있어요.
             </p>

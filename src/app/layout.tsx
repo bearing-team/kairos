@@ -3,7 +3,7 @@ import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "지원사업 데스크",
+  title: "Kairos",
   description: "베어링 내부 툴 — 정부지원사업 공고 추천과 초안 관리",
 };
 

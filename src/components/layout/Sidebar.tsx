@@ -15,7 +15,7 @@ export function Sidebar() {
       <div className="flex items-center justify-center gap-3 xl:justify-start xl:px-2">
         <LogoMark />
         <div className="hidden flex-col gap-0.5 xl:flex">
-          <span className="text-[15px] font-bold leading-[1.4]">지원사업 데스크</span>
+          <span className="text-[15px] font-bold leading-[1.4]">Kairos</span>
           <span className="text-[12px] leading-[1.4] text-ink-3">베어링 내부 툴</span>
         </div>
       </div>

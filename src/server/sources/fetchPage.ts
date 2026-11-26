@@ -30,7 +30,7 @@ export async function assertPublicHost(url: URL) {
   if (ips.some(isPrivate)) throw new Error("내부망 주소는 가져올 수 없어요");
 }
 
-const UA = "Mozilla/5.0 (compatible; grant-desk/0.1)";
+const UA = "Mozilla/5.0 (compatible; kairos/0.1)";
 
 /** 공개 주소만 받아 HTML 문자열로 (리다이렉트 뒤 주소도 내부망 검사) */
 export async function fetchHtml(rawUrl: string): Promise<{ url: string; html: string }> {

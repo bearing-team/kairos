@@ -2,7 +2,7 @@
 import { assertPublicHost } from "@/server/sources/fetchPage";
 
 export const MAX_FILE_BYTES = 30 * 1024 * 1024;
-const UA = "Mozilla/5.0 (compatible; grant-desk/0.1)";
+const UA = "Mozilla/5.0 (compatible; kairos/0.1)";
 
 async function safeFetch(rawUrl: string, init: { referer?: string; accept: string }): Promise<Response> {
   let url = new URL(rawUrl);

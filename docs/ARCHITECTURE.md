@@ -1,4 +1,4 @@
-# ARCHITECTURE — 지원사업 데스크 (가칭)
+# ARCHITECTURE — Kairos (카이로스)
 
 PRD의 기능을 어떻게 만들지. 1절 스택은 M0(2026-11-23)에서 아래처럼 확정했다.
 
