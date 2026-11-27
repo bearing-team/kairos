@@ -19,7 +19,7 @@ export async function startDraft(applicationId: string, _prev: DraftActionState)
   const app = await prisma.application.findUnique({ where: { id: applicationId }, select: { status: true } });
   if (!app) return { ok: false, message: "공고를 찾지 못했어요" };
   if (app.status === "excluded") return { ok: false, message: "제외한 공고예요. 다시 검토하기를 먼저 눌러 주세요" };
-  if (app.status === "new" || app.status === "triage") {
+  if (app.status === "new" || app.status === "triage" || app.status === "interested") {
     // 상태를 옮기면 초안이 없을 때 transition이 바로 만든다
     const r = await transition(applicationId, "drafting", { userId: user.id });
     if (!r.ok) return { ok: false, message: r.message };

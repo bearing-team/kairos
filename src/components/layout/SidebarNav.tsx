@@ -1,21 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { NAV_ITEMS, isActive } from "./nav-items";
 
 type Props = { counts?: Partial<Record<string, number>> };
 
 export function SidebarNav(props: Props) {
-  return <SidebarNavList {...props} pathname={usePathname()} />;
+  const status = useSearchParams().get("status");
+  return <SidebarNavList {...props} pathname={usePathname()} status={status} />;
 }
 
 /** pathname이 null이면 활성 표시 없이 그린다 (Suspense 대체 화면용) */
-export function SidebarNavList({ counts = {}, pathname }: Props & { pathname: string | null }) {
+export function SidebarNavList({ counts = {}, pathname, status }: Props & { pathname: string | null; status?: string | null }) {
   return (
     <div className="flex flex-col gap-1">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = pathname !== null && isActive(pathname, href);
+        const active = pathname !== null && isActive(pathname, href, status);
         const count = counts[href];
         return (
           <Link

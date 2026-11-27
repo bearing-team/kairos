@@ -71,3 +71,30 @@ export async function moveCard(applicationId: string, from: string, to: string):
   revalidatePath("/", "layout");
   return { ok: true, message: `${withRo(STATUS_STYLE[parsed.data.to].label)} 옮겼어요` };
 }
+
+const TriageSchema = z.object({
+  to: z.enum(["interested", "excluded", "triage"]),
+  reason: z.string().trim().max(500).optional(),
+});
+export type TriageResult = { ok: true; from: (typeof APPLICATION_STATUSES)[number] } | { ok: false; message: string };
+
+/**
+ * 1차 분류 (상세 화면 아래 분류 바): 관심 / 관심 없음(= 제외, 사유는 칩 하나) / 되돌리기(→ 검토 전).
+ * expectFrom으로 그 사이 바뀐 건 막는다
+ */
+export async function quickTriage(applicationId: string, to: string, reason?: string, expectFrom?: string): Promise<TriageResult> {
+  const user = await requireUser();
+  const parsed = TriageSchema.safeParse({ to, reason: reason || undefined });
+  const from = expectFrom ? z.enum(APPLICATION_STATUSES).safeParse(expectFrom) : null;
+  if (!parsed.success || (from && !from.success)) return { ok: false, message: "요청이 올바르지 않아요" };
+  // 상세를 열면 새 공고 → 검토 전으로 바뀌므로(markSeen) 둘은 같은 "분류 전"으로 본다
+  if (from?.data) {
+    const cur = await prisma.application.findUnique({ where: { id: applicationId }, select: { status: true } });
+    const same = (s?: string) => (s === "new" || s === "triage" ? "unsorted" : s);
+    if (cur && same(cur.status) !== same(from.data)) return { ok: false, message: "그 사이 다른 사람이 상태를 바꿨어요" };
+  }
+  const r = await transition(applicationId, parsed.data.to, { userId: user.id, reason: parsed.data.reason ?? null });
+  if (!r.ok) return { ok: false, message: r.message };
+  revalidatePath("/", "layout");
+  return { ok: true, from: r.from };
+}

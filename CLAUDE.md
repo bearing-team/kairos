@@ -78,6 +78,7 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 
 ## 매칭 (M2)
 - 흐름: 소싱 → `src/server/matching/run.ts`의 `refreshMatches()`(하드필터 `hardFilter.ts`, LLM 없음) → `scorePending()`(LLM, 프롬프트 `src/server/prompts/score.v1.ts`). 프롬프트를 고치면 새 버전 파일을 만들고 `promptVersion`이 바뀌게 한다
+- 1차 분류는 상세 화면에서: 분류 전(new·triage) 공고 상세 아래 `TriageBar`(관심 → `interested` / 관심 없음 → `excluded` + 사유 칩 / 건너뛰기) → 다음 분류 전 공고로. 순서는 `unsortedQueue()`(목록 "분류 전" 탭 기본 정렬과 같음), 목록의 "분류 시작"이 첫 공고. 되돌리기 토스트는 `(app)/layout`의 `TriageProvider`(`components/announcements/Triage.tsx`, 액션 `quickTriage`). 목록 줄에는 분류 버튼을 두지 않는다(제목만 보고 고르지 않게). 사이드바 "관심 공고" = `/announcements?status=interested`
 - 하드필터는 확실할 때만 제외한다. 애매하면 통과 + `filterNotes`(→ LLM 입력, 상세의 "확인 필요")
 - 상태 전이는 `src/lib/transitions.ts`로 서버에서만 검증, 변경은 `setStatus()`로 해서 `ApplicationEvent`가 남게 한다. 사람이 정한 상태는 하드필터가 덮어쓰지 않는다(`autoExcluded`만 자동 복귀)
 - 회사 프로필·제외 규칙 저장 → `refreshMatches()` 바로. 소싱·URL 추가 → 규칙 검사 바로, 점수는 `after()`로 응답 뒤에

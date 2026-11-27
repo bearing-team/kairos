@@ -106,6 +106,12 @@ export async function getHomeData(tab: HomeTab, now = new Date()) {
   return { todayNew, focusCount, hero, urgent, fresh, list, tabCounts, reviewers, listLimit: HOME_LIST_LIMIT };
 }
 
+/** 사이드바 "관심 공고" 배지 = 마감 안 된 관심 공고 수 */
+export async function interestedCount(now = new Date()) {
+  const company = await getCompany();
+  return prisma.application.count({ where: { companyId: company.id, status: "interested", announcement: openAnnouncementWhere(now) } });
+}
+
 /** 사이드바 "초안·리뷰" 배지 = 리뷰 대기 수 */
 export async function reviewWaitingCount() {
   const company = await getCompany();

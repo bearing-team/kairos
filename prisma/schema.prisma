@@ -301,6 +301,7 @@ model Match {
 enum ApplicationStatus {
   new
   triage
+  interested
   drafting
   review
   submitted

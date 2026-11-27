@@ -35,6 +35,7 @@
   /* ── 상태 색 (칩, 점, 바) ─────────────────── */
   --status-new-bg: #EEF2FF;       --status-new-fg: #2D5BE3;       --status-new-dot: #2D5BE3;
   --status-triage-bg: #F1F2F6;    --status-triage-fg: #4A5060;    --status-triage-dot: #B8BCC6;
+  --status-interested-bg: #FFF6DB; --status-interested-fg: #7A5600; --status-interested-dot: #F0B400;
   --status-drafting-bg: #F1EDFF;  --status-drafting-fg: #5B3FD1;  --status-drafting-dot: #7B5CF6;
   --status-review-bg: #FFF1E6;    --status-review-fg: #B4480A;    --status-review-dot: #E8590C;
   --status-submitted-bg: #E8F6EE; --status-submitted-fg: #1F7A4D; --status-submitted-dot: #1F9D63;

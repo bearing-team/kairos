@@ -12,6 +12,8 @@ import { ScoreRing } from "@/components/detail/ScoreRing";
 import { ExcludeDialog } from "@/components/detail/ExcludeDialog";
 import { RescoreButton } from "@/components/detail/RescoreButton";
 import { MarkSeen } from "@/components/detail/MarkSeen";
+import { TriageBar } from "@/components/announcements/Triage";
+import { unsortedQueue } from "@/server/announcements";
 import { timeline } from "@/lib/dday";
 import { SOURCE_LABEL } from "@/lib/sources";
 import { STATUS_STYLE } from "@/lib/status";
@@ -45,6 +47,11 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
   if (a.duplicateOf) redirect(`/announcements/${a.duplicateOf.id}`); // 중복이면 대표 공고로
 
   const now = new Date();
+  const unsorted = app?.status === "new" || app?.status === "triage";
+  // 분류 대기열에서 지금 위치와 다음 공고 (마지막이면 앞에서 건너뛴 것으로 돌아간다)
+  const queue = unsorted ? await unsortedQueue(now) : [];
+  const idx = queue.indexOf(a.id);
+  const nextId = queue.slice(idx + 1).concat(queue.slice(0, Math.max(idx, 0))).find((x) => x !== a.id) ?? null;
   const [progress, docs] = app
     ? await Promise.all([draftProgress([app.id]).then((m) => m.get(app.id) ?? null), prisma.requiredDoc.findMany({ where: { applicationId: app.id }, orderBy: [{ order: "asc" }, { createdAt: "asc" }] })])
     : [null, []];
@@ -244,7 +251,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
             </section>
           ) : null}
 
-          {app ? <Actions app={app} hasDraft={!!progress} /> : <p className="m-0 text-[13px] text-ink-3">아직 매칭 전이에요. 새 공고 가져오기를 누르면 규칙 검사를 해요.</p>}
+          {app ? <Actions app={app} hasDraft={!!progress} unsorted={unsorted} /> : <p className="m-0 text-[13px] text-ink-3">아직 매칭 전이에요. 공고 관리하기에서 지금 가져오기를 누르면 규칙 검사를 해요.</p>}
 
           {app?.events.length ? (
             <section aria-labelledby="history" className="flex flex-col gap-2 border-t border-line pt-4">
@@ -264,15 +271,27 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
           ) : null}
         </aside>
       </div>
+
+      {app && unsorted ? (
+        <TriageBar
+          applicationId={app.id}
+          announcementId={a.id}
+          status={app.status}
+          position={idx >= 0 ? idx + 1 : null}
+          total={queue.length}
+          nextHref={nextId ? `/announcements/${nextId}` : null}
+        />
+      ) : null}
     </>
   );
 }
 
-function Actions({ app, hasDraft }: { app: { id: string; status: keyof typeof STATUS_STYLE }; hasDraft: boolean }) {
+function Actions({ app, hasDraft, unsorted }: { app: { id: string; status: keyof typeof STATUS_STYLE }; hasDraft: boolean; unsorted: boolean }) {
   const primary = PRIMARY_ACTION[app.status];
   const next = allowedNext(app.status);
-  const canExclude = next.includes("excluded");
-  const others = next.filter((s) => s !== "excluded" && s !== primary?.to);
+  // 분류 전이면 관심 / 관심 없음은 아래 분류 바에서 한다
+  const canExclude = next.includes("excluded") && !unsorted;
+  const others = next.filter((s) => s !== "excluded" && s !== primary?.to && !(unsorted && s === "interested"));
 
   return (
     <div className="flex flex-col gap-3 border-t border-line pt-5">

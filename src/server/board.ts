@@ -51,14 +51,22 @@ const select = {
 export async function getBoard(now = new Date()) {
   const company = await getCompany();
   const base = { companyId: company.id };
-  const [recommended, recommendedTotal, drafting, review, submitted, users, submittedThisMonth] = await Promise.all([
+  const [interested, rest, recommendedTotal, drafting, review, submitted, users, submittedThisMonth] = await Promise.all([
+    // 관심 공고가 맨 위, 남는 자리에 분류 전 추천
+    prisma.application.findMany({
+      where: { ...base, status: "interested", announcement: openAnnouncementWhere(now) },
+      orderBy: [{ match: { score: { sort: "desc", nulls: "last" } } }, { announcement: { applyEnd: { sort: "asc", nulls: "last" } } }],
+      select,
+    }),
     prisma.application.findMany({
       where: { ...base, status: { in: ["new", "triage"] }, match: { hardFilterPassed: true }, announcement: openAnnouncementWhere(now) },
       orderBy: [{ match: { score: { sort: "desc", nulls: "last" } } }, { announcement: { applyEnd: { sort: "asc", nulls: "last" } } }],
       take: RECOMMENDED_LIMIT,
       select,
     }),
-    prisma.application.count({ where: { ...base, status: { in: ["new", "triage"] }, match: { hardFilterPassed: true }, announcement: openAnnouncementWhere(now) } }),
+    prisma.application.count({
+      where: { ...base, announcement: openAnnouncementWhere(now), OR: [{ status: "interested" }, { status: { in: ["new", "triage"] }, match: { hardFilterPassed: true } }] },
+    }),
     prisma.application.findMany({ where: { ...base, status: "drafting" }, orderBy: { announcement: { applyEnd: { sort: "asc", nulls: "last" } } }, select }),
     prisma.application.findMany({ where: { ...base, status: "review" }, orderBy: { announcement: { applyEnd: { sort: "asc", nulls: "last" } } }, select }),
     prisma.application.findMany({
@@ -69,6 +77,7 @@ export async function getBoard(now = new Date()) {
     prisma.user.findMany({ select: { id: true, name: true, email: true } }),
     countSubmittedThisMonth(company.id, now),
   ]);
+  const recommended = [...interested, ...rest.slice(0, Math.max(0, RECOMMENDED_LIMIT - interested.length))];
 
   const inProgress = [...drafting, ...review];
   const progress = await draftProgress(inProgress.map((a) => a.id));

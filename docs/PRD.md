@@ -65,6 +65,7 @@
 |---|---|---|---|
 | `new` | 새 공고 | 매칭됨, 아직 아무도 안 봄 | blue |
 | `triage` | 검토 전 | 열람했지만 진행 결정 안 함 | gray |
+| `interested` | 관심 | 1차 분류에서 관심 표시 (상세 화면 아래 분류 바). 관심 없음은 `excluded`(사유 칩) | yellow |
 | `drafting` | 초안 작성 중 | 진행 결정, 초안 생성/편집 중 | purple |
 | `review` | 리뷰 중 | 리뷰어 지정됨 | orange |
 | `submitted` | 제출 완료 | 사람이 실제 제출함(제출일 기록) | green |

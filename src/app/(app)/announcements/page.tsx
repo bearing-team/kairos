@@ -8,7 +8,8 @@ import { LinkTabs } from "@/components/ui/LinkTabs";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AnnouncementRow } from "@/components/announcements/AnnouncementRow";
 import { SourcesButton } from "@/components/announcements/SourcesButton";
-import { LIST_STATUS, listAnnouncements, syncStatus, type ListStatus } from "@/server/announcements";
+import { buttonClass } from "@/components/ui/Button";
+import { LIST_STATUS, listAnnouncements, syncStatus, unsortedQueue, type ListStatus } from "@/server/announcements";
 import { SOURCE_LABEL } from "@/server/sources/sync";
 import { formatKstRelative } from "@/lib/format";
 import { requireUser } from "@/server/session";
@@ -16,7 +17,7 @@ import type { AnnouncementSource } from "@/generated/prisma/client";
 
 type SP = { q?: string; source?: string; status?: string; sort?: string; closed?: string; page?: string };
 const SOURCES: AnnouncementSource[] = ["bizinfo", "kstartup", "board", "newsletter", "manual"];
-const STATUS_TABS: [ListStatus, string][] = [["new", "새 공고"], ["progress", "진행 중"], ["done", "제출·결과"], ["excluded", "제외"]];
+const STATUS_TABS: [ListStatus, string][] = [["unsorted", "분류 전"], ["interested", "관심"], ["progress", "진행 중"], ["done", "제출·결과"], ["excluded", "제외"]];
 const SORTS: ["score" | "deadline" | "recent", string][] = [["score", "적합도순"], ["deadline", "마감 임박순"], ["recent", "최근 등록순"]];
 
 export default function AnnouncementsPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -44,16 +45,17 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
   const includeClosed = sp.closed === "1";
   const now = new Date();
 
-  const [{ items, total, counts, all, page, pages }, sync] = await Promise.all([
+  const [{ items, total, counts, statusCounts, all, page, pages }, sync, queue] = await Promise.all([
     listAnnouncements({ q: sp.q, source, status, sort, includeClosed, page: Number(sp.page) || 1 }, now),
     syncStatus(),
+    unsortedQueue(now),
   ]);
 
   return (
     <>
       <PageHeader
         eyebrow={sync.lastSuccessAt ? `${formatKstRelative(sync.lastSuccessAt, now)}에 가져왔어요` : "아직 공고를 가져온 적이 없어요"}
-        title={`공고 ${all.toLocaleString("ko-KR")}건`}
+        title={status === "interested" ? `관심 공고 ${total.toLocaleString("ko-KR")}건` : `공고 ${all.toLocaleString("ko-KR")}건`}
         actions={
           <>
             <form action="/announcements" className="w-full md:w-auto">
@@ -88,7 +90,11 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
           current={status ?? "all"}
           items={[
             { key: "all", label: "모든 상태", href: href(sp, { status: undefined, page: undefined }) },
-            ...STATUS_TABS.map(([k, label]) => ({ key: k, label, href: href(sp, { status: k, page: undefined }) })),
+            ...STATUS_TABS.map(([k, label]) => ({
+              key: k,
+              label: k === "unsorted" || k === "interested" ? `${label} ${statusCounts[k]}` : label,
+              href: href(sp, { status: k, page: undefined }),
+            })),
           ]}
         />
       </div>
@@ -113,8 +119,24 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
         </div>
       </div>
 
+      {status === "unsorted" && queue.length ? (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-surface px-6 py-5">
+          <div className="flex flex-col gap-1">
+            <span className="text-[16px] font-bold">분류 전 공고 {queue.length}건</span>
+            <span className="text-[13px] text-ink-3">적합도 높은 순으로 하나씩 열어 보고 관심 / 관심 없음을 골라요. 고르면 다음 공고로 넘어가요.</span>
+          </div>
+          <Link href={`/announcements/${queue[0]}`} className={buttonClass("primary", "md")}>
+            분류 시작
+          </Link>
+        </div>
+      ) : null}
+
       {items.length === 0 ? (
-        sp.q ? (
+        status === "unsorted" && !sp.q ? (
+          <EmptyState title="분류할 공고가 없어요" description="새로 들어온 공고를 모두 관심 / 관심 없음으로 나눴어요." />
+        ) : status === "interested" && !sp.q ? (
+          <EmptyState title="아직 관심 공고가 없어요" description="분류 전 탭에서 분류 시작을 눌러 공고를 하나씩 보고 관심을 골라 주세요." />
+        ) : sp.q ? (
           <EmptyState title={`"${sp.q}"에 맞는 공고가 없어요`} description="다른 단어로 찾아보거나 필터를 바꿔 보세요." />
         ) : (
           <EmptyState
