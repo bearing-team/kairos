@@ -20,6 +20,8 @@ export type ListStatus = keyof typeof LIST_STATUS;
 export type ListFilter = {
   q?: string;
   source?: AnnouncementSource;
+  /** 게시판·뉴스레터 안에서 가져온 곳: BoardSource.id / NewsletterIssue.id, 없는 것은 "none" */
+  from?: string;
   status?: ListStatus;
   sort?: "score" | "deadline" | "recent";
   includeClosed?: boolean;
@@ -48,9 +50,11 @@ export async function listAnnouncements(f: ListFilter, now = new Date()) {
   const company = await getCompany();
   const where = baseWhere(f, now);
   const page = Math.max(1, f.page ?? 1);
+  const originField = f.source === "board" ? "boardSourceId" : f.source === "newsletter" ? "newsletterIssueId" : null;
+  const sourceWhere: Prisma.AnnouncementWhereInput = f.source ? { AND: [where, { source: f.source }] } : where;
   const appWhere: Prisma.ApplicationWhereInput = {
     companyId: company.id,
-    announcement: f.source ? { AND: [where, { source: f.source }] } : where,
+    announcement: originField && f.from ? { AND: [sourceWhere, { [originField]: f.from === "none" ? null : f.from }] } : sourceWhere,
     ...(f.status ? { status: { in: LIST_STATUS[f.status] } } : {}),
   };
   const orderBy: Prisma.ApplicationOrderByWithRelationInput[] =
@@ -59,12 +63,13 @@ export async function listAnnouncements(f: ListFilter, now = new Date()) {
       : f.sort === "deadline"
         ? [{ announcement: { applyEnd: { sort: "asc", nulls: "last" } } }, { match: { score: { sort: "desc", nulls: "last" } } }]
         : [{ match: { score: { sort: "desc", nulls: "last" } } }, { announcement: { applyEnd: { sort: "asc", nulls: "last" } } }];
-  const [items, total, bySource, byStatus] = await Promise.all([
+  const [items, total, bySource, byStatus, origins] = await Promise.all([
     prisma.application.findMany({ where: appWhere, orderBy, skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE, select: rowSelect }),
     prisma.application.count({ where: appWhere }),
     prisma.announcement.groupBy({ by: ["source"], where, _count: { _all: true } }),
     // 상태 탭 숫자 (소스 필터·검색은 따른다)
     prisma.application.groupBy({ by: ["status"], where: { companyId: company.id, announcement: appWhere.announcement }, _count: { _all: true } }),
+    originField ? listOrigins(originField, sourceWhere) : Promise.resolve([]),
   ]);
   const statusCounts = Object.fromEntries(
     (Object.keys(LIST_STATUS) as ListStatus[]).map((k) => [
@@ -74,7 +79,33 @@ export async function listAnnouncements(f: ListFilter, now = new Date()) {
   ) as Record<ListStatus, number>;
   const counts = Object.fromEntries(bySource.map((r) => [r.source, r._count._all])) as Partial<Record<AnnouncementSource, number>>;
   const all = bySource.reduce((n, r) => n + r._count._all, 0);
-  return { items, total, counts, statusCounts, all, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  return { items, total, counts, statusCounts, all, origins, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+}
+
+export type Origin = { id: string; name: string; count: number };
+
+/** 게시판·뉴스레터 탭 아래의 "가져온 곳" 칩: 게시판별 / 뉴스레터 호별 공고 수 (검색·마감 필터는 따른다) */
+async function listOrigins(field: "boardSourceId" | "newsletterIssueId", where: Prisma.AnnouncementWhereInput): Promise<Origin[]> {
+  const groups =
+    field === "boardSourceId"
+      ? await prisma.announcement.groupBy({ by: ["boardSourceId"], where, _count: { _all: true } })
+      : await prisma.announcement.groupBy({ by: ["newsletterIssueId"], where, _count: { _all: true } });
+  const ids = groups.map((g) => ("boardSourceId" in g ? g.boardSourceId : g.newsletterIssueId)).filter((id): id is string => !!id);
+  const names = new Map(
+    field === "boardSourceId"
+      ? (await prisma.boardSource.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((b) => [b.id, b.name])
+      : (await prisma.newsletterIssue.findMany({ where: { id: { in: ids } }, select: { id: true, title: true } })).map((n) => [n.id, n.title]),
+  );
+  return groups
+    .map((g) => {
+      const id = "boardSourceId" in g ? g.boardSourceId : g.newsletterIssueId;
+      return {
+        id: id ?? "none",
+        name: id ? (names.get(id) ?? "알 수 없음") : field === "boardSourceId" ? "연결 끊은 게시판" : "지운 뉴스레터",
+        count: g._count._all,
+      };
+    })
+    .sort((a, b) => (a.id === "none" ? 1 : b.id === "none" ? -1 : b.count - a.count));
 }
 
 /** 소스별 마지막 실행 + 마지막 성공 이후 실패 여부 */

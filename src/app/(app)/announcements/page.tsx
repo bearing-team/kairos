@@ -15,7 +15,7 @@ import { formatKstRelative } from "@/lib/format";
 import { requireUser } from "@/server/session";
 import type { AnnouncementSource } from "@/generated/prisma/client";
 
-type SP = { q?: string; source?: string; status?: string; sort?: string; closed?: string; page?: string };
+type SP = { q?: string; source?: string; from?: string; status?: string; sort?: string; closed?: string; page?: string };
 const SOURCES: AnnouncementSource[] = ["bizinfo", "kstartup", "board", "newsletter", "manual"];
 const STATUS_TABS: [ListStatus, string][] = [["unsorted", "분류 전"], ["interested", "관심"], ["progress", "진행 중"], ["done", "제출·결과"], ["excluded", "제외"]];
 const SORTS: ["score" | "deadline" | "recent", string][] = [["score", "적합도순"], ["deadline", "마감 임박순"], ["recent", "최근 등록순"]];
@@ -41,12 +41,13 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const source = SOURCES.includes(sp.source as AnnouncementSource) ? (sp.source as AnnouncementSource) : undefined;
   const sort = sp.sort === "recent" || sp.sort === "deadline" ? sp.sort : "score";
+  const from = source === "board" || source === "newsletter" ? sp.from : undefined;
   const status = sp.status && sp.status in LIST_STATUS ? (sp.status as ListStatus) : undefined;
   const includeClosed = sp.closed === "1";
   const now = new Date();
 
-  const [{ items, total, counts, statusCounts, all, page, pages }, sync, queue] = await Promise.all([
-    listAnnouncements({ q: sp.q, source, status, sort, includeClosed, page: Number(sp.page) || 1 }, now),
+  const [{ items, total, counts, statusCounts, all, origins, page, pages }, sync, queue] = await Promise.all([
+    listAnnouncements({ q: sp.q, source, from, status, sort, includeClosed, page: Number(sp.page) || 1 }, now),
     syncStatus(),
     unsortedQueue(now),
   ]);
@@ -72,7 +73,7 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
       {sync.failing.length ? (
         <div role="alert" className="flex items-center gap-2 rounded-lg bg-[var(--status-review-bg)] px-4 py-3 text-[13px] text-urgent-text">
           <AlertCircle size={16} strokeWidth={2} aria-hidden="true" />
-          {sync.failing.map((s) => SOURCE_LABEL[s]).join(", ")} 불러오기에 실패했어요 · 새 공고 가져오기에서 다시 시도할 수 있어요
+          {sync.failing.map((s) => SOURCE_LABEL[s]).join(", ")} 불러오기에 실패했어요 · 공고 관리하기에서 다시 시도할 수 있어요
         </div>
       ) : null}
 
@@ -81,8 +82,8 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
           label="소스"
           current={source ?? "all"}
           items={[
-            { key: "all", label: `전체 ${all}`, href: href(sp, { source: undefined, page: undefined }) },
-            ...SOURCES.map((s) => ({ key: s, label: `${SOURCE_LABEL[s]} ${counts[s] ?? 0}`, href: href(sp, { source: s, page: undefined }) })),
+            { key: "all", label: `전체 ${all}`, href: href(sp, { source: undefined, from: undefined, page: undefined }) },
+            ...SOURCES.map((s) => ({ key: s, label: `${SOURCE_LABEL[s]} ${counts[s] ?? 0}`, href: href(sp, { source: s, from: undefined, page: undefined }) })),
           ]}
         />
         <LinkTabs
@@ -98,6 +99,28 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
           ]}
         />
       </div>
+
+      {source && origins.length ? (
+        <nav aria-label={`${SOURCE_LABEL[source]} 가져온 곳`} className="-mt-3 flex flex-wrap items-center gap-2">
+          {[{ id: "", name: `모든 ${SOURCE_LABEL[source]}`, count: counts[source] ?? 0 }, ...origins].map((o) => {
+            const active = (from ?? "") === o.id;
+            return (
+              <Link
+                key={o.id || "all"}
+                href={href(sp, { from: o.id || undefined, page: undefined })}
+                aria-current={active ? "page" : undefined}
+                className={[
+                  "flex h-8 max-w-[18rem] items-center gap-1.5 rounded-full border px-3.5 text-[13px] whitespace-nowrap transition-colors",
+                  active ? "border-transparent bg-accent-soft font-semibold text-accent" : "border-line bg-surface font-medium text-ink-2 hover:text-ink",
+                ].join(" ")}
+              >
+                <span className="truncate">{o.name}</span>
+                <span className={active ? "text-accent" : "text-ink-3"}>{o.count}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
 
       <div className="-mt-4 flex flex-wrap items-center justify-between gap-3 text-[13px] font-semibold">
         <nav aria-label="정렬" className="flex items-center gap-3">
@@ -139,10 +162,7 @@ async function Content({ searchParams }: { searchParams: Promise<SP> }) {
         ) : sp.q ? (
           <EmptyState title={`"${sp.q}"에 맞는 공고가 없어요`} description="다른 단어로 찾아보거나 필터를 바꿔 보세요." />
         ) : (
-          <EmptyState
-            title="아직 가져온 공고가 없어요"
-            description="새 공고 가져오기에서 기업마당·K-Startup을 가져오거나 기관 게시판을 연결해 주세요."
-          />
+          <EmptyState title="아직 가져온 공고가 없어요" description="공고 관리하기에서 기업마당·K-Startup을 가져오거나 기관 게시판을 연결해 주세요." />
         )
       ) : (
         <section aria-label="공고 목록" className="overflow-hidden rounded-xl border border-line bg-surface">

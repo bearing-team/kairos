@@ -2,19 +2,24 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Plus } from "lucide-react";
 import { addBoard, type SourceState } from "@/app/(app)/announcements/sources/actions";
 import { Field, FormMessage, TextInput } from "@/components/form/fields";
 import { buttonClass } from "@/components/ui/Button";
 import { submitWith } from "@/components/form/useFormAction";
 
-/** 게시판 연결: 기관 홈페이지의 공고 목록 주소 + (선택) 이름 */
+/** 게시판 연결: 기관 홈페이지의 공고 목록 주소 + (선택) 이름. 연결되면 소스 목록으로 */
 export function AddBoardForm() {
   const [state, action, pending] = useActionState<SourceState, FormData>(addBoard, null);
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
   useEffect(() => {
-    if (state?.ok) formRef.current?.reset();
-  }, [state]);
+    if (state?.ok) {
+      formRef.current?.reset();
+      router.push("/announcements/sources");
+    }
+  }, [state, router]);
   const e = state?.errors ?? {};
 
   return (

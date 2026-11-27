@@ -1,16 +1,14 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { AlertCircle, ChevronRight, Database, ExternalLink, Globe, LoaderCircle, Newspaper } from "lucide-react";
+import { AlertCircle, ArrowLeft, ChevronRight, Database, ExternalLink, Globe, LoaderCircle, Newspaper, Plus } from "lucide-react";
 import { PageHeader, PageHeaderSkeleton } from "@/components/layout/PageHeader";
-import { AddBoardForm } from "@/components/sources/AddBoardForm";
-import { AddNewsletterForm } from "@/components/sources/AddNewsletterForm";
 import { BoardActions } from "@/components/sources/BoardActions";
 import { SyncAllButton } from "@/components/sources/SyncAllButton";
 import { DraftPoller } from "@/components/draft/DraftPoller";
 import { requireUser } from "@/server/session";
 import { getSourceList, type ApiSourceRow, type BoardSourceRow, type NewsletterIssueRow } from "@/server/sourceList";
-import { llmConfigured } from "@/server/llm";
+import { buttonClass } from "@/components/ui/Button";
 import { SOURCE_LABEL } from "@/lib/sources";
 import { formatKstRelative } from "@/lib/format";
 import { KeyButton, type KeyView } from "@/components/settings/KeyButton";
@@ -18,9 +16,15 @@ import { keyViews } from "@/server/keyViews";
 
 export default function Page() {
   return (
-    <Suspense fallback={<PageHeaderSkeleton />}>
-      <Sources />
-    </Suspense>
+    <>
+      <Link href="/announcements" className="-mb-4 inline-flex w-fit items-center gap-1 text-[13px] font-semibold text-ink-3 hover:text-ink">
+        <ArrowLeft size={14} strokeWidth={2.2} aria-hidden="true" />
+        전체 공고
+      </Link>
+      <Suspense fallback={<PageHeaderSkeleton />}>
+        <Sources />
+      </Suspense>
+    </>
   );
 }
 
@@ -31,23 +35,23 @@ async function Sources() {
   await requireUser();
   const now = new Date();
   const [{ api, board, newsletter, newsletterCount }, keys] = await Promise.all([getSourceList(now), keyViews()]);
-  const llm = llmConfigured();
 
   return (
     <>
-      <PageHeader eyebrow="매일 아침 8시에 새 공고를 확인해요" title={`공고 소스 ${api.length + board.length}곳`} actions={<SyncAllButton />} />
+      <PageHeader
+        eyebrow="매일 아침 8시에 새 공고를 확인해요"
+        title={`공고 소스 ${api.length + board.length}곳`}
+        actions={
+          <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:flex-row md:items-start">
+            <Link href="/announcements/sources/new" className={buttonClass("soft", "md", "w-full md:w-auto")}>
+              <Plus size={16} strokeWidth={2.4} aria-hidden="true" />
+              새 소스 연결하기
+            </Link>
+            <SyncAllButton />
+          </div>
+        }
+      />
       <DraftPoller active={board.some((b) => b.checking)} everyMs={4000} />
-
-      <AddBoardForm />
-      {!llm ? (
-        <div role="note" className="-mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[var(--status-review-bg)] px-4 py-3 text-[13px] text-urgent-text">
-          <span className="flex items-center gap-2">
-            <AlertCircle size={16} strokeWidth={2} aria-hidden="true" />
-            게시판 글을 읽으려면 Anthropic API 키가 필요해요. 연결은 먼저 해 둘 수 있어요.
-          </span>
-          <KeyButton k={keys.views.ANTHROPIC_API_KEY} />
-        </div>
-      ) : null}
 
       <section aria-labelledby="sources-list" className="flex flex-col gap-3">
         <h2 id="sources-list" className="m-0 text-[20px] leading-[1.4] font-bold">
@@ -61,10 +65,9 @@ async function Sources() {
             <BoardRow key={b.id} b={b} now={now} />
           ))}
         </ul>
-        {board.length === 0 ? <p className="m-0 px-2 text-[13px] text-ink-3">아직 연결한 게시판이 없어요. 위에서 기관 공고 목록 주소를 넣어 주세요.</p> : null}
+        {board.length === 0 ? <p className="m-0 px-2 text-[13px] text-ink-3">아직 연결한 게시판이 없어요. 새 소스 연결하기에서 기관 공고 목록 주소를 넣어 주세요.</p> : null}
       </section>
 
-      <AddNewsletterForm />
       <section aria-labelledby="newsletter-list" className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="newsletter-list" className="m-0 text-[20px] leading-[1.4] font-bold">
@@ -79,7 +82,12 @@ async function Sources() {
             ))}
           </ul>
         ) : (
-          <p className="m-0 px-2 text-[13px] text-ink-3">아직 가져온 뉴스레터가 없어요.</p>
+          <p className="m-0 px-2 text-[13px] text-ink-3">
+            아직 가져온 뉴스레터가 없어요.{" "}
+            <Link href="/announcements/sources/new?type=newsletter" className="font-semibold text-accent hover:text-accent-hover">
+              뉴스레터 링크 넣기
+            </Link>
+          </p>
         )}
       </section>
     </>
@@ -107,9 +115,9 @@ function Row({ icon, title, chip, sub, status, right }: { icon: React.ReactNode;
   );
 }
 
-function Count({ n, source }: { n: number; source: string }) {
+function Count({ n, source, from }: { n: number; source: string; from?: string }) {
   return (
-    <Link href={`/announcements?source=${source}&closed=1`} className="text-[13px] font-semibold whitespace-nowrap text-ink-2 hover:text-ink">
+    <Link href={`/announcements?source=${source}${from ? `&from=${from}` : ""}&closed=1`} className="text-[13px] font-semibold whitespace-nowrap text-ink-2 hover:text-ink">
       공고 {n.toLocaleString("ko-KR")}건
     </Link>
   );
@@ -186,7 +194,7 @@ function BoardRow({ b, now }: { b: BoardSourceRow; now: Date }) {
       status={status}
       right={
         <>
-          <Count n={b.count} source="board" />
+          <Count n={b.count} source="board" from={b.id} />
           <BoardActions id={b.id} name={b.name} enabled={b.enabled} checking={b.checking} />
         </>
       }

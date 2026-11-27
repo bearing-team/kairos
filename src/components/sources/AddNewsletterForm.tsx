@@ -31,7 +31,7 @@ export function AddNewsletterForm() {
         <TextInput name="newsletterUrl" type="url" placeholder="https://featpaper.com/…" required invalid={!!e.newsletterUrl} aria-describedby={e.newsletterUrl ? "newsletterUrl-error" : "newsletterUrl-help"} />
       </Field>
       <div className="flex flex-wrap items-center gap-4">
-        <button type="submit" disabled={pending} className={buttonClass("soft", "md", "w-full md:w-auto")}>
+        <button type="submit" disabled={pending} className={buttonClass("primary", "md", "w-full md:w-auto")}>
           <Newspaper size={16} strokeWidth={2.2} aria-hidden="true" />
           {pending ? "뉴스레터 읽는 중 (10초쯤)" : "가져오기"}
         </button>
