@@ -4,6 +4,7 @@ PRD의 기능을 어떻게 만들지. 1절 스택은 M0(2026-11-23)에서 아래
 
 > **M0 확정 버전**: Next.js 16.4 (App Router, `cacheComponents` + Partial Prefetching, `src/proxy.ts`) · React 19.3 · Tailwind CSS 4.3 (CSS `@theme`) · Prisma 7.10 (`prisma.config.ts`, `@prisma/adapter-pg`) · PostgreSQL 17 (docker, 호스트 5433) · Auth.js v5 beta (`next-auth@5.0.0-beta.32`, JWT 세션 + Prisma 어댑터) · lucide-react · Pretendard(npm, variable dynamic subset) · vitest.
 > 인증: Google만 + `ALLOWED_EMAIL_DOMAIN` 화이트리스트(`email_verified` 필수, 도메인 미설정이면 전원 거부). 개발 전용 로그인(`AUTH_DEV_LOGIN=1`, production에서는 비활성).
+> **2026-11-27 변경**: 로그인(Auth.js·Google)을 없앴다. 모두 공용 팀 계정 하나(`src/server/session.ts`)로 쓰고, 배포 주소는 Amplify Access control로 막는다. `Account`·`Session`·`VerificationToken` 테이블과 `next-auth` 의존성 제거. 배포는 Railway → AWS(Amplify + Fargate, DB는 Neon) — `docs/DEPLOY.md`
 > Prisma 스키마는 M0에서 Auth.js 테이블 + `Company`만 만들었다. 나머지 모델은 해당 마일스톤에서 3절 이름 그대로 추가한다.
 > **M1 반영**: `ItemCard`, `ExclusionRule`, `Announcement`, `Attachment`, `SyncRun` 추가. `Announcement`에 3절 외 필드 `applyPeriodText`(날짜로 못 바꾸는 원문), `applyUrl`, `contentHash`(변경 감지), `duplicateOfId`(소스 간 중복 묶음), `firstSeenAt` 추가. 날짜는 KST 자정을 UTC로 저장. pg-boss는 Node 20 때문에 10.x, 스키마 `pgboss`. URL 추출 모델은 `LLM_MODEL_EXTRACT`(기본 `claude-opus-5-5`, effort low).
 > **M2 반영**: `Match`에 `scoreStatus`(pending|running|scored|failed|skipped), `filterNotes`(통과했지만 확인 못 한 요건), `eligibility`, `scoredHash`(점수 때의 contentHash), `scoreError` 추가. `Application`은 `(announcementId, companyId)`로 `Match`와 1:1로 묶고 `autoExcluded`(하드필터 제외 → 조건이 바뀌면 자동 복귀), `statusChangedAt` 추가. 상태 변경은 `ApplicationEvent`(from, to, reason, userId)에 남긴다(PRD F3.4). 하드필터는 "확실할 때만 제외": 업력은 트랙 중 하나라도 맞으면 통과, 설립일·소재지가 없으면 통과 + 메모. 지역은 지역 필드 → 공고명 `[부산]` → 광역 지자체 이름의 주관 기관 순으로 본다. 점수는 하드필터 통과분만, 한 번에 `SCORE_MAX_PER_RUN`(기본 30)개, 마감 가까운 순. 회사 프로필이 바뀌어도 점수를 자동으로 다시 매기지 않는다(비용) → 상세의 "점수 다시 매기기". 새 공고 → 검토 전은 상세를 실제로 연 때(마운트 후 액션, 프리패치로 바뀌지 않게).
@@ -23,7 +24,7 @@ PRD의 기능을 어떻게 만들지. 1절 스택은 M0(2026-11-23)에서 아래
 | 잡 큐 | **pg-boss** (Postgres 기반) | 별도 Redis 없이 소싱·매칭·초안 잡 처리 |
 | 스케줄 | pg-boss cron (매일 08:00 소싱, 월 09:00 다이제스트) | |
 | LLM | Anthropic API (`@anthropic-ai/sdk`), 모델은 env로 | 점수·초안 모두 JSON 출력 강제 |
-| 인증 | Auth.js + Google, 팀 도메인 화이트리스트 | |
+| 인증 | 없음 (공용 팀 계정 하나, 배포 주소는 Amplify Access control) | 2026-11-27에 Auth.js 제거 |
 | 파일 저장 | 로컬 디스크(개발) → S3 호환(Cloudflare R2 등) | 첨부, 업로드 문서, 내보내기 |
 | 문서 처리 | **Node만 (M4 결정)**: HWPX·DOCX zip+XML, HWP 5 OLE+레코드, PDF unpdf | 실제 양식 12/12 성공. doc-worker는 배포용 HWP가 잦거나 원본 양식 채우기(F4.6) 때 다시 검토 — `docs/forms-parsing.md` |
 | 배포 | 단일 VM + docker compose (web, worker, postgres) | 내부 툴, 4명 사용 |
@@ -106,7 +107,7 @@ ReviewComment
 RequiredDoc        제출 서류 체크리스트
   applicationId, name, libraryDocId?, status(ready|missing|na)
 
-User               팀원 (Auth.js)
+User               작성자 기록용 (지금은 공용 팀 계정 하나)
 SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, updated, error?)
 ```
 
@@ -283,9 +284,6 @@ SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, up
 ```
 DATABASE_URL=
 AUTH_SECRET=
-AUTH_GOOGLE_ID=
-AUTH_GOOGLE_SECRET=
-ALLOWED_EMAIL_DOMAIN=
 BIZINFO_API_KEY=
 DATA_GO_KR_SERVICE_KEY=
 ANTHROPIC_API_KEY=

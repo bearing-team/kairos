@@ -49,11 +49,11 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 ```
 
 처음 세팅: `cp .env.example .env` → `AUTH_SECRET`(openssl rand -base64 32) 채우기 → 위 순서대로.
-구글 키가 없을 때는 `.env`에 `AUTH_DEV_LOGIN=1`이면 로그인 화면에 "개발용 계정으로 들어가기"가 나온다(production에서는 꺼짐).
+로그인은 없다. 모두 공용 팀 계정 하나로 쓴다(`src/server/session.ts`). 배포 주소는 Amplify Access control(비밀번호)로 막는다.
 
 ## 구현 메모 (M0에서 정한 것)
-- Next.js 16: `middleware` → `src/proxy.ts`. `cacheComponents` 켜져 있음 → 세션·DB를 읽는 컴포넌트는 `<Suspense>` 안에 두고 `connection()`/`requireUser()`로 요청 시점에 읽는다. 버전별 API는 `node_modules/next/dist/docs/`를 먼저 본다 (AGENTS.md)
-- 인증: 데이터 접근 전 `src/server/session.ts`의 `requireUser()`. proxy는 낙관적 체크만
+- Next.js 16: `middleware`는 `src/proxy.ts`(지금은 없음). `cacheComponents` 켜져 있음 → DB를 읽는 컴포넌트는 `<Suspense>` 안에 두고 `connection()`/`requireUser()`로 요청 시점에 읽는다. 버전별 API는 `node_modules/next/dist/docs/`를 먼저 본다 (AGENTS.md)
+- 데이터 접근 전 `src/server/session.ts`의 `requireUser()`: 요청 시점으로 만들고(`connection()`), 연결 키를 읽고, 공용 팀 계정(`team@kairos.local`)을 돌려준다. 상태 변경·코멘트의 작성자는 이 계정
 - Tailwind v4: 토큰 매핑은 `src/app/globals.css`의 `@theme inline`. 값 자체는 `design/tokens.css`만 고친다. 기본 스타일은 `@layer base` 안에(밖에 두면 유틸리티를 덮어씀)
 - Prisma 7: 설정은 `prisma.config.ts`, 클라이언트는 `src/generated/prisma`(커밋 안 함), `@prisma/adapter-pg` 사용
 - 상태 표기·색은 `src/lib/status.ts`, KST 날짜 계산은 `src/lib/kst.ts`, D-day·타임라인은 `src/lib/dday.ts`만 쓴다

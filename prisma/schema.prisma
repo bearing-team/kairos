@@ -11,7 +11,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// ── Auth.js (@auth/prisma-adapter) ─────────────────
+// ── 사용자 (로그인 없음: 공용 팀 계정 하나 + 예전 구글 로그인 사용자. src/server/session.ts) ──
 
 model User {
   id                String             @id @default(cuid())
@@ -19,50 +19,12 @@ model User {
   email             String?            @unique
   emailVerified     DateTime?
   image             String?
-  accounts          Account[]
-  sessions          Session[]
   applicationEvents ApplicationEvent[]
   drafts            Draft[]
   comments          ReviewComment[]    @relation("CommentAuthor")
   resolvedComments  ReviewComment[]    @relation("CommentResolver")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
-}
-
-model Account {
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([provider, providerAccountId])
-}
-
-model Session {
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-model VerificationToken {
-  identifier String
-  token      String
-  expires    DateTime
-
-  @@id([identifier, token])
 }
 
 // ── 회사 (지금은 1개. 확장 여지로 다른 테이블은 companyId를 둔다) ──
