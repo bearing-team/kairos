@@ -156,3 +156,24 @@ export async function setReviewers(applicationId: string, reviewerIds: string[])
   revalidatePath("/", "layout");
   return { ok: true, message: "리뷰어를 바꿨어요" };
 }
+
+/** 양식 채우기 초안: 칸 값을 한꺼번에 저장 (f:<섹션 id> = 값, 고르는 칸은 여러 번) */
+export async function saveFormFields(draftId: string, _prev: DraftActionState, fd: FormData): Promise<DraftActionState> {
+  await requireUser();
+  const sections = await prisma.draftSection.findMany({ where: { draftId }, select: { id: true, content: true, status: true, updatedAt: true, field: true } });
+  if (sections.some((s) => s.status === "generating" && Date.now() - s.updatedAt.getTime() < STALE_MS)) return { ok: false, message: "AI가 칸을 채우는 중이에요. 끝나면 저장해 주세요" };
+  let changed = 0;
+  for (const s of sections) {
+    const meta = s.field as { kind?: string; options?: string[] } | null;
+    const raw = fd.getAll(`f:${s.id}`).map((v) => String(v));
+    const content = (meta?.kind === "choice" ? raw.filter((v) => meta.options?.includes(v)).join(", ") : (raw[0] ?? "")).replace(/\r\n/g, "\n").trim().slice(0, 5000);
+    if (content === s.content) continue;
+    changed++;
+    await prisma.draftSection.update({
+      where: { id: s.id },
+      data: { content, needsCheck: content ? [] : ["비어 있어요"], generatedBy: "human", status: "done", error: null },
+    });
+  }
+  revalidatePath("/applications/[id]/draft", "page");
+  return { ok: true, message: changed ? `${changed}칸을 저장했어요` : "바뀐 칸이 없어요" };
+}

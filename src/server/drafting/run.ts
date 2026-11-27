@@ -7,7 +7,11 @@ import { charCount, mergeChecks } from "@/lib/needsCheck";
 import { companyBlock } from "@/server/prompts/company-block";
 import { FORM_SECTIONS_PROMPT_VERSION, FORM_SECTIONS_SYSTEM, FormSectionsSchema, formSectionsUserMessage, type FormSections } from "@/server/prompts/form-sections.v1";
 import { DRAFT_SECTION_PROMPT_VERSION, DraftSectionSchema, draftSectionUserMessage, draftSystem } from "@/server/prompts/draft-section.v1";
+import { FORM_FILL_PROMPT_VERSION, FormFillSchema, formFillSystem, formFillUserMessage } from "@/server/prompts/form-fill.v1";
+import { readHwpForm, type FormField, type HwpForm } from "@/server/docs/hwpForm";
+import { detectFormat } from "@/server/docs";
 import { rankForms, syncAttachments } from "./attachments";
+import { getFile } from "./storage";
 import { pickTemplate, TEMPLATE_LABEL, TEMPLATES } from "./templates";
 
 const STALE_MS = 15 * 60 * 1000;
@@ -64,7 +68,29 @@ async function extractSections(input: Parameters<typeof formSectionsUserMessage>
   };
 }
 
-/** 첨부 받기 → 양식 읽기 → 섹션·서류 정하기 → 섹션별 초안 */
+/** 양식 채우기로 갈 서식: 칸이 3개 이상 보이는 짧은 HWP 서식 (참여의향서·신청서처럼 표에 값을 넣는 양식). 긴 사업계획서는 서술형 섹션으로 */
+const FILL_MIN_FIELDS = 3;
+const FILL_MAX_CHARS = 6000;
+async function fillableForm(forms: { id: string; fileName: string; fileKey: string | null; text: string | null }[], hasSections: boolean) {
+  for (const f of forms) {
+    if (!f.fileKey || (hasSections && (f.text?.length ?? 0) > FILL_MAX_CHARS)) continue;
+    try {
+      const buf = await getFile(f.fileKey);
+      if (detectFormat(buf, f.fileName) !== "hwp") continue;
+      const form = readHwpForm(buf);
+      if (form.fields.length >= FILL_MIN_FIELDS) return { attachmentId: f.id, fileName: f.fileName, form };
+    } catch {
+      // 못 읽으면 서술형으로
+    }
+  }
+  return null;
+}
+
+/** DraftSection.field에 저장하는 칸 정보 */
+export type FieldMeta = Pick<FormField, "kind" | "mode" | "prefix" | "hint" | "options" | "multi">;
+const fieldMeta = (f: FormField): FieldMeta => ({ kind: f.kind, mode: f.mode, prefix: f.prefix, hint: f.hint, options: f.options, multi: f.multi });
+
+/** 첨부 받기 → 양식 읽기 → 섹션·서류 정하기 → 섹션별 초안 (표에 값을 넣는 서식이면 칸 채우기) */
 export async function runDraft(draftId: string): Promise<void> {
   const draft = await prisma.draft.findUniqueOrThrow({
     where: { id: draftId },
@@ -78,7 +104,7 @@ export async function runDraft(draftId: string): Promise<void> {
 
     const a = await prisma.announcement.findUniqueOrThrow({
       where: { id: draft.application.announcementId },
-      select: { title: true, organization: true, summary: true, category: true, attachments: { where: { parseStatus: "parsed" }, select: { id: true, fileName: true, kind: true, text: true } } },
+      select: { title: true, organization: true, summary: true, category: true, attachments: { where: { parseStatus: "parsed" }, select: { id: true, fileName: true, fileKey: true, kind: true, text: true } } },
     });
     const forms = rankForms(a.attachments);
     const notice = a.attachments.filter((x) => x.kind === "notice" && x.text).sort((x, y) => (y.text?.length ?? 0) - (x.text?.length ?? 0))[0] ?? null;
@@ -96,8 +122,13 @@ export async function runDraft(draftId: string): Promise<void> {
       });
     } else if (!forms.length) notes.push("읽을 수 있는 신청 양식이 없어요");
 
-    let sections: { title: string; guidance: string | null; limitChars: number | null; key: string }[];
-    if (plan.sections.length) {
+    let sections: { title: string; guidance: string | null; limitChars: number | null; key: string; field?: FieldMeta }[];
+    const fill: { attachmentId: string; fileName: string; form: HwpForm } | null = await fillableForm(forms, plan.sections.length > 0);
+    if (fill) {
+      templateSource = "fill";
+      sections = fill.form.fields.map((f) => ({ key: f.id, title: f.label, guidance: f.hint, limitChars: null, field: fieldMeta(f) }));
+      notes.push(`${fill.fileName} 양식의 칸 ${fill.form.fields.length}개를 채워요. 다 되면 같은 양식의 HWP로 받을 수 있어요`);
+    } else if (plan.sections.length) {
       templateSource = "form";
       sections = plan.sections.map((s, i) => ({ ...s, key: `s${i + 1}` }));
     } else {
@@ -114,7 +145,7 @@ export async function runDraft(draftId: string): Promise<void> {
     await prisma.$transaction([
       prisma.draftSection.deleteMany({ where: { draftId } }),
       prisma.draftSection.createMany({
-        data: sections.map((s, i) => ({ draftId, order: i, key: s.key, title: s.title, guidance: s.guidance || null, limitChars: s.limitChars })),
+        data: sections.map((s, i) => ({ draftId, order: i, key: s.key, title: s.title, guidance: s.guidance || null, limitChars: s.limitChars, field: s.field ?? undefined })),
       }),
       prisma.requiredDoc.createMany({
         data: plan.requiredDocs.map((d, i) => ({ applicationId: draft.applicationId, name: d.name, note: d.note || null, required: d.required, order: i })),
@@ -125,11 +156,11 @@ export async function runDraft(draftId: string): Promise<void> {
         data: {
           status: llmConfigured() ? "generating" : "ready",
           templateSource,
-          formAttachmentId: forms[0]?.id ?? null,
+          formAttachmentId: fill?.attachmentId ?? forms[0]?.id ?? null,
           criteria: plan.criteria,
           notes,
           model: llmConfigured() ? MODELS.draft() : null,
-          promptVersion: llmConfigured() ? `${FORM_SECTIONS_PROMPT_VERSION}+${DRAFT_SECTION_PROMPT_VERSION}` : null,
+          promptVersion: llmConfigured() ? `${FORM_SECTIONS_PROMPT_VERSION}+${fill ? FORM_FILL_PROMPT_VERSION : DRAFT_SECTION_PROMPT_VERSION}` : null,
         },
       }),
     ]);
@@ -141,6 +172,8 @@ export async function runDraft(draftId: string): Promise<void> {
 
 /** 섹션 초안 쓰기. sectionIds가 없으면 비어 있거나 실패한 섹션 전부 */
 export async function generateSections(draftId: string, opts: { sectionIds?: string[]; instruction?: string } = {}): Promise<{ done: number; failed: number }> {
+  const kind = await prisma.draft.findUniqueOrThrow({ where: { id: draftId }, select: { templateSource: true } });
+  if (kind.templateSource === "fill") return fillFields(draftId, opts);
   const d = await prisma.draft.findUniqueOrThrow({
     where: { id: draftId },
     select: {
@@ -216,6 +249,115 @@ export async function generateSections(draftId: string, opts: { sectionIds?: str
     }
   };
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker));
+  const still = await prisma.draftSection.count({ where: { draftId, status: "generating" } });
+  if (!still) await prisma.draft.update({ where: { id: draftId }, data: { status: "ready" } });
+  return { done, failed };
+}
+
+type ContactCompany = {
+  name: string;
+  address: string | null;
+  ceoName: string | null;
+  contactName: string | null;
+  contactDept: string | null;
+  contactTitle: string | null;
+  contactPhone: string | null;
+  contactTel: string | null;
+  contactEmail: string | null;
+  bizType: string | null;
+};
+function contactBlock(c: ContactCompany): string {
+  const v = (x: string | null) => x || "(프로필에 없음)";
+  return [
+    `- 기관(기업)명: ${c.name}`,
+    `- 기관 유형: ${c.bizType ? "기업" : "(프로필에 없음)"}`,
+    `- 본사 주소: ${v(c.address)}`,
+    `- 대표자: ${v(c.ceoName)}`,
+    `- 신청 담당자: ${v(c.contactName)}`,
+    `- 담당자 부서: ${v(c.contactDept)}`,
+    `- 담당자 직위: ${v(c.contactTitle)}`,
+    `- 담당자 휴대전화: ${v(c.contactPhone)}`,
+    `- 사무실 전화: ${v(c.contactTel)}`,
+    `- 담당자 이메일: ${v(c.contactEmail)}`,
+  ].join("\n");
+}
+
+/** 양식 칸 채우기 (한 번의 호출로 대상 칸 전부). 모르는 칸은 비워 두고 확인 필요로 */
+async function fillFields(draftId: string, opts: { sectionIds?: string[]; instruction?: string }): Promise<{ done: number; failed: number }> {
+  const d = await prisma.draft.findUniqueOrThrow({
+    where: { id: draftId },
+    select: {
+      sections: { orderBy: { order: "asc" }, select: { id: true, key: true, title: true, guidance: true, status: true, field: true } },
+      formAttachment: { select: { fileName: true } },
+      application: {
+        select: {
+          company: true,
+          match: { select: { suggestedItemCardId: true } },
+          announcement: { select: { title: true, organization: true, summary: true, attachments: { where: { kind: "notice", parseStatus: "parsed" }, select: { text: true } } } },
+        },
+      },
+    },
+  });
+  const app = d.application;
+  const targets = d.sections.filter((s) => (opts.sectionIds ? opts.sectionIds.includes(s.id) : s.status === "empty" || s.status === "failed"));
+  if (!targets.length) return { done: 0, failed: 0 };
+  await prisma.draftSection.updateMany({ where: { id: { in: targets.map((t) => t.id) } }, data: { status: "generating", error: null } });
+  await prisma.draft.update({ where: { id: draftId }, data: { status: "generating" } });
+
+  const cards = await prisma.itemCard.findMany({ where: { companyId: app.company.id }, orderBy: { createdAt: "asc" } });
+  const now = new Date();
+  const model = MODELS.draft();
+  let done = 0;
+  let failed = 0;
+  try {
+    const response = await getLlm().messages.parse({
+      model,
+      max_tokens: 16000,
+      output_config: { effort: "medium", format: zodOutputFormat(FormFillSchema) },
+      system: formFillSystem({
+        companyBlock: companyBlock(app.company, cards, cards.find((c) => c.id === app.match.suggestedItemCardId)?.name ?? null, now),
+        contactBlock: contactBlock(app.company),
+        announcement: app.announcement,
+        noticeText: app.announcement.attachments.map((x) => x.text).filter(Boolean).sort((x, y) => y!.length - x!.length)[0] ?? null,
+        now,
+      }),
+      messages: [
+        {
+          role: "user",
+          content:
+            formFillUserMessage(
+              d.formAttachment?.fileName ?? null,
+              targets.map((t) => {
+                const f = t.field as FieldMeta | null;
+                return { id: t.key, label: t.title, kind: f?.kind ?? "text", options: f?.options ?? [], multi: f?.multi ?? false, hint: t.guidance };
+              }),
+            ) + (opts.instruction ? `\n\n추가 요청: ${opts.instruction}` : ""),
+        },
+      ],
+    });
+    if (response.stop_reason === "refusal") throw new Error("모델이 응답을 거절했어요");
+    if (!response.parsed_output) throw new Error(response.stop_reason === "max_tokens" ? "응답이 잘렸어요" : "응답 형식이 맞지 않아요");
+    const byId = new Map(response.parsed_output.fields.map((f) => [f.id, f]));
+    for (const t of targets) {
+      const meta = t.field as FieldMeta | null;
+      const out = byId.get(t.key);
+      if (!out) {
+        failed++;
+        await prisma.draftSection.update({ where: { id: t.id }, data: { status: "failed", error: "모델이 이 칸을 빠뜨렸어요" } });
+        continue;
+      }
+      const content = meta?.kind === "choice" ? out.selected.filter((o) => meta.options.includes(o)).slice(0, meta.multi ? undefined : 1).join(", ") : out.value.trim();
+      const checks = [out.needsCheck.trim(), !content ? "비어 있어요" : ""].filter(Boolean);
+      await prisma.draftSection.update({
+        where: { id: t.id },
+        data: { content, aiContent: content, needsCheck: [...new Set(checks)].slice(0, 1), status: "done", generatedBy: "ai", model, promptVersion: FORM_FILL_PROMPT_VERSION, error: null },
+      });
+      done++;
+    }
+  } catch (e) {
+    failed = targets.length;
+    await prisma.draftSection.updateMany({ where: { id: { in: targets.map((t) => t.id) }, status: "generating" }, data: { status: "failed", error: apiError(e) } });
+  }
   const still = await prisma.draftSection.count({ where: { draftId, status: "generating" } });
   if (!still) await prisma.draft.update({ where: { id: draftId }, data: { status: "ready" } });
   return { done, failed };

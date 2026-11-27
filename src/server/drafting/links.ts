@@ -75,7 +75,7 @@ export const fileExt = (name: string) => name.toLowerCase().match(/\.([a-z0-9]{1
 /** 이름으로 첨부 종류 추정. 양식이 공고문보다 먼저 (예: "공고문 및 신청서 양식"은 양식) */
 export function classifyAttachment(name: string): "notice" | "form" | "other" {
   const n = name.replace(/\s+/g, "");
-  if (/양식|서식|신청서|계획서|제출서류|별지|별첨/.test(n)) return "form";
+  if (/양식|서식|신청서|계획서|제출서류|별지|별첨|의향서|동의서|확인서|서약서|참가신청/.test(n)) return "form";
   if (/공고/.test(n)) return "notice";
   return "other";
 }

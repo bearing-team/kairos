@@ -73,6 +73,14 @@ async function CompanyContent({ searchParams }: { searchParams: Promise<{ tab?: 
             revenueBand: company.revenueBand ?? "",
             ceoBirthYear: company.ceoBirthYear?.toString() ?? "",
             description: company.description ?? "",
+            address: company.address ?? "",
+            ceoName: company.ceoName ?? "",
+            contactName: company.contactName ?? "",
+            contactDept: company.contactDept ?? "",
+            contactTitle: company.contactTitle ?? "",
+            contactPhone: company.contactPhone ?? "",
+            contactTel: company.contactTel ?? "",
+            contactEmail: company.contactEmail ?? "",
           }}
         />
       ) : null}

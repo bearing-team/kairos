@@ -95,6 +95,7 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 ## 초안 (M4)
 - 흐름: drafting 전환·"초안 만들기" → `createDraft()` → `after(runDraft)`: `drafting/attachments.ts`(상세 페이지 다시 열어 새 링크 → 내려받기 → `storage/` → `server/docs` 파싱) → `form-sections.v1`(섹션·평가 기준·제출 서류) → `draft-section.v1`(섹션마다). 자세한 건 ARCHITECTURE 6절
 - 파서는 Node만 (`src/server/docs/`, doc-worker 없음 — `docs/forms-parsing.md`). unpdf는 0.12.1 고정 (2.x는 Node 22 필요)
+- 양식 채우기(`templateSource=fill`): 짧은 HWP 서식(참여의향서·신청서)에서 `src/server/docs/hwpForm.ts`의 `readHwpForm()`이 표의 "제목 칸 → 값 칸"(빈 칸, `(휴대전화)` 머리말 칸, `(예시)` 칸, `□` 보기 칸)을 칸으로 찾으면 섹션 대신 칸(`DraftSection.field`)을 만들고 `form-fill.v1`로 한 번에 채운다. 모르는 칸은 빈 값 + 확인 필요(HWP에 【확인 필요】 글자를 넣지 않음). 화면은 `FormFillSheet`, 받기는 `/api/drafts/[id]/export?format=hwp` → `fillHwp()`(원본 레코드를 그대로 두고 값 칸 문단만 고침, 고른 보기는 □→■). 인적사항은 회사 프로필 "신청서 인적사항"(주소·대표자·담당자·연락처). HWPX 양식은 아직 서술형으로
 - `【확인 필요: …】` 찾기·하이라이트·글자 수는 `src/lib/needsCheck.ts`만 쓴다. 색은 토큰 `check-bg`/`check-fg`
 - 초안 화면 `/applications/[id]/draft`: 작업 중이면 `DraftPoller`가 3초마다 `router.refresh()`
 - `src/server/drafting/*`, `src/server/docs/*`는 tsx 스크립트에서도 쓰므로 `server-only`를 붙이지 않는다 (`src/server/drafts.ts`는 화면 전용)

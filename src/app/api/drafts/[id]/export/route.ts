@@ -1,6 +1,7 @@
 import { requireUser } from "@/server/session";
 import { loadExportDoc } from "@/server/export/load";
 import { exportFileName, toDocx, toMarkdown } from "@/server/export/format";
+import { draftToHwp } from "@/server/export/hwp";
 
 const disposition = (name: string) => `attachment; filename*=UTF-8''${encodeURIComponent(name)}`;
 
@@ -8,6 +9,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   await requireUser();
   const { id } = await params;
   const format = new URL(req.url).searchParams.get("format");
+  if (format === "hwp") {
+    const out = await draftToHwp(id);
+    if (!out) return new Response("양식 채우기 초안이 아니거나 원본 양식이 없어요", { status: 404 });
+    return new Response(new Uint8Array(out.buf), { headers: { "content-type": "application/x-hwp", "content-disposition": disposition(out.fileName) } });
+  }
   const doc = await loadExportDoc(id);
   if (!doc) return new Response("Not found", { status: 404 });
   if (format === "md") {
@@ -19,5 +25,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       headers: { "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "content-disposition": disposition(exportFileName(doc, "docx")) },
     });
   }
-  return new Response("format은 docx 또는 md", { status: 400 });
+  return new Response("format은 hwp, docx 또는 md", { status: 400 });
 }

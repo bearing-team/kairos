@@ -18,6 +18,7 @@ import { llmConfigured } from "@/server/llm";
 import { TEMPLATE_LABEL, type TemplateType } from "@/server/drafting/templates";
 import { ReviewerPicker } from "@/components/draft/ReviewerPicker";
 import { ExportMenu } from "@/components/draft/ExportMenu";
+import { FormFillSheet, type FillField } from "@/components/draft/FormFillSheet";
 import type { CommentView } from "@/components/draft/CommentThread";
 
 export default function DraftPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string }> }) {
@@ -57,6 +58,8 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
     }));
   const openComments = sections.flatMap((sec) => sec.comments.filter((c) => !c.resolvedAt).map((c) => ({ sec, c })));
   const missing = sections.filter((s) => s.status === "empty" || s.status === "failed").length;
+  const fill = draft?.templateSource === "fill";
+  const unit = fill ? "칸" : "섹션";
   const source = draft?.templateSource?.startsWith("default:") ? `기본 템플릿(${TEMPLATE_LABEL[draft.templateSource.slice(8) as TemplateType] ?? "기본"})` : draft?.formAttachment ? `양식 ‘${draft.formAttachment.fileName}’` : null;
 
   return (
@@ -81,7 +84,7 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
           {draft && sections.length ? (
             <div className="flex flex-wrap items-center gap-2 text-[13px]">
               <span className="text-ink-2">
-                {done}/{sections.length} 섹션 완료
+                {done}/{sections.length} {unit} 완료
               </span>
               {checks ? <span className="rounded-full bg-check-bg px-2.5 py-1 font-semibold text-check-fg">확인 필요 {checks}곳</span> : null}
               {openComments.length ? <span className="rounded-full bg-[var(--status-review-bg)] px-2.5 py-1 font-semibold text-[var(--status-review-fg)]">열린 코멘트 {openComments.length}개</span> : null}
@@ -90,7 +93,7 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {draft && !working ? <StartDraftButton applicationId={app.id} label="초안 새로 만들기" className={buttonClass("soft", "md")} /> : null}
-          {draft && sections.length ? <ExportMenu draftId={draft.id} checks={checks} /> : null}
+          {draft && sections.length ? <ExportMenu draftId={draft.id} checks={checks} hwp={fill} /> : null}
           {app.status === "drafting" && draft ? <StatusButton applicationId={app.id} to="review" label="리뷰 요청하기" pendingLabel="요청하는 중" className={buttonClass("primary", "md")} /> : null}
           {app.status === "review" ? <StatusButton applicationId={app.id} to="submitted" label="제출 완료로 표시" className={buttonClass("primary", "md")} /> : null}
         </div>
@@ -108,7 +111,7 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
       ) : (
         <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start min-[87.5rem]:grid-cols-[180px_minmax(0,1fr)_300px]">
           {/* 왼쪽: 섹션 목차 (넓은 화면만) */}
-          {sections.length ? (
+          {sections.length && !fill ? (
             <nav aria-label="섹션 목차" className="sticky top-10 hidden flex-col gap-1 min-[87.5rem]:flex">
               {sections.map((s) => (
                 <a key={s.id} href={`#sec-${s.order}`} className="flex items-start gap-2 rounded-md px-2 py-1.5 text-[13px] leading-[1.45] text-ink-2 hover:bg-surface-subtle">
@@ -154,13 +157,25 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
             ) : null}
             {llm && !working && missing && sections.length ? (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface p-5">
-                <span className="text-[14px] text-ink-2">비어 있는 섹션 {missing}개</span>
-                <GenerateMissingButton draftId={draft.id} label="빈 섹션 초안 쓰기" className={buttonClass("soft", "sm")} />
+                <span className="text-[14px] text-ink-2">
+                  비어 있는 {unit} {missing}개
+                </span>
+                <GenerateMissingButton draftId={draft.id} label={fill ? "빈 칸 채우기" : "빈 섹션 초안 쓰기"} className={buttonClass("soft", "sm")} />
               </div>
             ) : null}
-            {sections.map((s) => (
-              <SectionCard key={s.id} s={s} llm={llm} comments={commentsOf(s)} meId={me.id} />
-            ))}
+            {fill ? (
+              sections.length ? (
+                <FormFillSheet
+                  draftId={draft.id}
+                  title={draft.formAttachment?.fileName.replace(/^\s*\d+\.\s*/, "").replace(/\.hwp$/i, "").replace(/^\((.+?)\)\s*(.*)$/, "$2 $1") ?? null}
+                  fileName={draft.formAttachment?.fileName ?? null}
+                  fields={sections.map((s): FillField => ({ id: s.id, title: s.title, content: s.content, needsCheck: s.needsCheck, status: s.status, error: s.error, field: s.field as FillField["field"] }))}
+                  working={working}
+                />
+              ) : null
+            ) : (
+              sections.map((s) => <SectionCard key={s.id} s={s} llm={llm} comments={commentsOf(s)} meId={me.id} />)
+            )}
           </div>
 
           {/* 오른쪽: 서류·첨부·평가 기준 */}

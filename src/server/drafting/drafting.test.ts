@@ -43,6 +43,9 @@ describe("첨부 종류·양식 고르기·템플릿", () => {
     expect(classifyAttachment("2026 공고문 및 신청서.hwp")).toBe("form");
     expect(classifyAttachment("모집 공고.pdf")).toBe("notice");
     expect(classifyAttachment("포스터.png")).toBe("other");
+    expect(classifyAttachment("2. (참여의향서) K-해양 AI 벨트 얼라이언스.hwp")).toBe("form");
+    expect(classifyAttachment("개인정보 수집 동의서.hwp")).toBe("form");
+    expect(classifyAttachment("1. (공고문) K-해양 AI 벨트 얼라이언스 참여 수요조사.hwp")).toBe("notice");
   });
 
   it("사업계획서를 신청서보다 먼저", () => {

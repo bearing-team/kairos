@@ -63,6 +63,24 @@ const companySchema = z.object({
   revenueBand: optText,
   ceoBirthYear: optInt(1900, new Date().getFullYear(), "출생 연도를 4자리로 입력해 주세요"),
   description: optText,
+  address: optText,
+  ceoName: optText,
+  contactName: optText,
+  contactDept: optText,
+  contactTitle: optText,
+  contactPhone: optText,
+  contactTel: optText,
+  contactEmail: z
+    .string()
+    .trim()
+    .transform((v, ctx) => {
+      if (!v) return null;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        ctx.addIssue({ code: "custom", message: "이메일 형식이 맞지 않아요" });
+        return z.NEVER;
+      }
+      return v;
+    }),
 });
 
 export async function saveCompany(_prev: FormState, fd: FormData): Promise<FormState> {

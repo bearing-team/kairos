@@ -19,6 +19,14 @@ export type CompanyValues = {
   revenueBand: string;
   ceoBirthYear: string;
   description: string;
+  address: string;
+  ceoName: string;
+  contactName: string;
+  contactDept: string;
+  contactTitle: string;
+  contactPhone: string;
+  contactTel: string;
+  contactEmail: string;
 };
 
 export function CompanyForm({ values }: { values: CompanyValues }) {
@@ -63,6 +71,36 @@ export function CompanyForm({ values }: { values: CompanyValues }) {
         </Field>
         <Field label="주력 사업 설명" name="description" help="무엇을 누구에게 제공하는지 한 문단으로" error={e.description} wide>
           <TextArea name="description" defaultValue={values.description} rows={5} />
+        </Field>
+      </div>
+      <div className="flex flex-col gap-1 border-t border-line pt-6">
+        <h2 className="m-0 text-[17px] leading-[1.45] font-bold">신청서 인적사항</h2>
+        <p className="m-0 text-[14px] leading-[1.6] text-ink-3">참여의향서·신청서 양식의 성명·연락처·주소 칸을 채울 때 써요. 비워 두면 그 칸은 비워 둔 채로 확인 필요로 남겨요.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <Field label="본사 주소" name="address" help="신청서 '기업주소' 칸에 그대로 써요" error={e.address} wide>
+          <TextInput name="address" defaultValue={values.address} invalid={!!e.address} />
+        </Field>
+        <Field label="대표자 이름" name="ceoName" error={e.ceoName}>
+          <TextInput name="ceoName" defaultValue={values.ceoName} invalid={!!e.ceoName} />
+        </Field>
+        <Field label="신청 담당자 이름" name="contactName" help="신청서 '성명' 칸" error={e.contactName}>
+          <TextInput name="contactName" defaultValue={values.contactName} invalid={!!e.contactName} />
+        </Field>
+        <Field label="담당자 부서" name="contactDept" error={e.contactDept}>
+          <TextInput name="contactDept" defaultValue={values.contactDept} invalid={!!e.contactDept} />
+        </Field>
+        <Field label="담당자 직위" name="contactTitle" error={e.contactTitle}>
+          <TextInput name="contactTitle" defaultValue={values.contactTitle} invalid={!!e.contactTitle} />
+        </Field>
+        <Field label="담당자 휴대전화" name="contactPhone" error={e.contactPhone}>
+          <TextInput name="contactPhone" inputMode="tel" defaultValue={values.contactPhone} invalid={!!e.contactPhone} />
+        </Field>
+        <Field label="사무실 전화" name="contactTel" error={e.contactTel}>
+          <TextInput name="contactTel" inputMode="tel" defaultValue={values.contactTel} invalid={!!e.contactTel} />
+        </Field>
+        <Field label="담당자 이메일" name="contactEmail" error={e.contactEmail}>
+          <TextInput name="contactEmail" type="email" defaultValue={values.contactEmail} invalid={!!e.contactEmail} />
         </Field>
       </div>
       <div className="flex flex-wrap items-center gap-4">
