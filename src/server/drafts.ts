@@ -8,6 +8,7 @@ export async function getDraftPage(applicationId: string, version?: number) {
     where: { id: applicationId },
     select: {
       id: true,
+      companyId: true,
       status: true,
       ownerId: true,
       reviewerIds: true,
@@ -51,7 +52,12 @@ export async function getDraftPage(applicationId: string, version?: number) {
   // 서버가 중간에 꺼져 멈춘 작업은 실패로 보여준다
   const sections = draft?.sections.map((s) => (s.status === "generating" && stale(s.updatedAt) ? { ...s, status: "failed" as const, error: "중간에 멈췄어요. 다시 써 주세요" } : s));
   const draftStatus = draft && (draft.status === "preparing" || draft.status === "generating") && stale(draft.updatedAt) && !sections?.some((s) => s.status === "generating") ? "failed" : draft?.status;
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true } });
+  // 리뷰어 후보 = 같은 회사의 가입한 구성원 (+ 예전에 지정된 리뷰어는 그대로 보이게)
+  const users = await prisma.user.findMany({
+    where: { OR: [{ companyId: app.companyId, passwordHash: { not: null } }, { id: { in: app.reviewerIds } }] },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, email: true },
+  });
   return { app, users, draft: draft ? { ...draft, status: draftStatus!, sections: sections! } : null };
 }
 

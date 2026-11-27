@@ -4,14 +4,15 @@ import { llmConfigured } from "@/server/llm";
 import { refreshMatches, scorePending } from "@/server/matching/run";
 import { checkBoard } from "@/server/sources/boards";
 import { generateSections, runDraft } from "@/server/drafting/run";
-import { sendReviewRequest } from "@/server/notify/run";
+import { sendReviewRequest, sendWorkRequest } from "@/server/notify/run";
 
 export type BackgroundJob =
   | { kind: "draft-run"; draftId: string }
   | { kind: "draft-sections"; draftId: string; sectionIds?: string[]; instruction?: string }
   | { kind: "score-pending" }
   | { kind: "board-check"; boardId: string }
-  | { kind: "review-request"; applicationId: string; userId: string };
+  | { kind: "review-request"; applicationId: string; userId: string }
+  | { kind: "work-request"; requestId: string };
 
 export async function runJob(job: BackgroundJob): Promise<void> {
   switch (job.kind) {
@@ -34,6 +35,9 @@ export async function runJob(job: BackgroundJob): Promise<void> {
     }
     case "review-request":
       await sendReviewRequest(job.applicationId, job.userId);
+      return;
+    case "work-request":
+      await sendWorkRequest(job.requestId);
       return;
   }
 }

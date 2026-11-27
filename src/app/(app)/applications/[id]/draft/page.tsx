@@ -20,6 +20,11 @@ import { ReviewerPicker } from "@/components/draft/ReviewerPicker";
 import { ExportMenu } from "@/components/draft/ExportMenu";
 import { FormFillSheet, type FillField } from "@/components/draft/FormFillSheet";
 import type { CommentView } from "@/components/draft/CommentThread";
+import { RequestForm } from "@/components/requests/RequestForm";
+import { RequestCard } from "@/components/requests/RequestCard";
+import { toRequestView } from "@/components/requests/view";
+import { applicationRequests } from "@/server/requests";
+import { kstDateString } from "@/lib/kst";
 
 export default function DraftPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ v?: string }> }) {
   return (
@@ -39,6 +44,8 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
   const data = await getDraftPage(id, v ? Number(v) || undefined : undefined);
   if (!data) notFound();
   const { app, draft, users } = data;
+  if (app.companyId !== me.companyId) notFound();
+  const reqs = await applicationRequests(me, app.id);
   const a = app.announcement;
   const llm = llmConfigured();
   const now = new Date();
@@ -60,6 +67,29 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
   const missing = sections.filter((s) => s.status === "empty" || s.status === "failed").length;
   const fill = draft?.templateSource === "fill";
   const unit = fill ? "칸" : "섹션";
+  const members = users.filter((u) => u.id !== me.id);
+  const requestPanel = (
+    <section aria-labelledby="requests-title" className="flex flex-col gap-3">
+      <h2 id="requests-title" className="m-0 flex items-center gap-2 text-[15px] font-bold">
+        요청
+        {reqs.open.length ? <span className="rounded-full bg-chip px-2 text-[12px] leading-[22px] font-semibold text-ink-2">{reqs.open.length}</span> : null}
+      </h2>
+      {reqs.open.map((r) => (
+        <RequestCard key={r.id} r={toRequestView(r, me.id, now)} compact />
+      ))}
+      <RequestForm applicationId={app.id} members={members} sections={fill ? [] : sections.map((s) => ({ id: s.id, title: s.title }))} today={kstDateString(now)} />
+      {reqs.closed.length ? (
+        <details className="text-[13px]">
+          <summary className="cursor-pointer text-ink-3">끝난 요청 {reqs.closed.length}개</summary>
+          <div className="mt-2 flex flex-col gap-2">
+            {reqs.closed.map((r) => (
+              <RequestCard key={r.id} r={toRequestView(r, me.id, now)} compact />
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </section>
+  );
   const source = draft?.templateSource?.startsWith("default:") ? `기본 템플릿(${TEMPLATE_LABEL[draft.templateSource.slice(8) as TemplateType] ?? "기본"})` : draft?.formAttachment ? `양식 ‘${draft.formAttachment.fileName}’` : null;
 
   return (
@@ -107,6 +137,7 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
           </p>
           {!llm ? <p className="m-0 text-[13px] text-ink-3">ANTHROPIC_API_KEY가 없어 지금은 양식만 받고 기본 섹션을 만들어요.</p> : null}
           <StartDraftButton applicationId={app.id} label="초안 만들기" className={buttonClass("primary", "lg")} />
+          <div className="mt-2 w-full max-w-[420px] border-t border-line pt-5">{requestPanel}</div>
         </section>
       ) : (
         <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start min-[87.5rem]:grid-cols-[180px_minmax(0,1fr)_300px]">
@@ -180,7 +211,9 @@ async function Draft({ params, searchParams }: { params: Promise<{ id: string }>
 
           {/* 오른쪽: 서류·첨부·평가 기준 */}
           <aside aria-label="제출 준비" className="flex w-full flex-col gap-6 rounded-xl border border-line bg-surface p-6 xl:sticky xl:top-10">
-            <section aria-labelledby="review-title" className="flex flex-col gap-3">
+            {requestPanel}
+
+            <section aria-labelledby="review-title" className="flex flex-col gap-3 border-t border-line pt-5">
               <h2 id="review-title" className="m-0 text-[15px] font-bold">
                 리뷰
               </h2>

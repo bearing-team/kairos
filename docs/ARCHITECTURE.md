@@ -24,7 +24,7 @@ PRD의 기능을 어떻게 만들지. 1절 스택은 M0(2026-11-23)에서 아래
 | 잡 큐 | **pg-boss** (Postgres 기반) | 별도 Redis 없이 소싱·매칭·초안 잡 처리 |
 | 스케줄 | pg-boss cron (매일 08:00 소싱, 월 09:00 다이제스트) | |
 | LLM | Anthropic API (`@anthropic-ai/sdk`), 모델은 env로 | 점수·초안 모두 JSON 출력 강제 |
-| 인증 | 없음 (공용 팀 계정 하나, 배포 주소는 Amplify Access control) | 2026-11-27에 Auth.js 제거 |
+| 인증 | 이메일·비밀번호 + DB 세션 (가입 때 소속 회사 = 등록된 Company) | 2026-11-27에 Auth.js 제거 → 자체 로그인 |
 | 파일 저장 | 로컬 디스크(개발) → S3 호환(Cloudflare R2 등) | 첨부, 업로드 문서, 내보내기 |
 | 문서 처리 | **Node만 (M4 결정)**: HWPX·DOCX zip+XML, HWP 5 OLE+레코드, PDF unpdf | 실제 양식 12/12 성공. doc-worker는 배포용 HWP가 잦거나 원본 양식 채우기(F4.6) 때 다시 검토 — `docs/forms-parsing.md` |
 | 배포 | 단일 VM + docker compose (web, worker, postgres) | 내부 툴, 4명 사용 |
@@ -107,7 +107,8 @@ ReviewComment
 RequiredDoc        제출 서류 체크리스트
   applicationId, name, libraryDocId?, status(ready|missing|na)
 
-User               작성자 기록용 (지금은 공용 팀 계정 하나)
+User               구성원 (companyId, passwordHash, slackUserId) · Session (쿠키 토큰 sha256)
+WorkRequest        구성원 요청 (작성·보강·리뷰·기타, Application + 선택 섹션, open/done/declined/canceled)
 SyncRun            소싱 실행 기록 (source, startedAt, fetched, created, updated, error?)
 ```
 

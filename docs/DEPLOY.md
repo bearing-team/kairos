@@ -71,7 +71,7 @@ aws cloudformation describe-stacks --stack-name kairos --query "Stacks[0].Output
    | `APP_BASE_URL` | Amplify 도메인 (예 `https://main.xxxx.amplifyapp.com`) — 첫 배포 뒤 알 수 있으니 그때 넣고 다시 배포 |
 
    Amplify는 `AWS_`로 시작하는 이름을 못 쓰게 해서 `S3_REGION`을 따로 둔다.
-4. **접근 제어(Access control)를 켠다.** 지금은 앱에 로그인이 없어서 주소만 알면 누구나 들어온다. 앱 설정 → Access control → 브랜치 `main`에 사용자 이름·비밀번호를 걸고 팀에만 공유한다
+4. **접근 제어(Access control)를 켠다(권장).** 앱 로그인은 있지만, 소속 회사 이름만 알면 누구나 가입할 수 있다. 앱 설정 → Access control → 브랜치 `main`에 사용자 이름·비밀번호를 걸고 팀에만 공유한다
 5. 배포가 끝나면 도메인으로 들어가 본다 (`/api/health` → `{"ok":true}`)
 
 빌드에서 하는 일: Node 22 → `pnpm install`(hoisted) → `pnpm db:deploy`(마이그레이션 + 회사가 없을 때만 시드) → `NEXT_OUTPUT=standalone pnpm build` → `node scripts/amplify-bundle.mjs`.

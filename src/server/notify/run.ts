@@ -5,8 +5,9 @@ import { focusWhere, openAnnouncementWhere } from "@/server/matches";
 import { kstDateString, kstDayStart } from "@/lib/kst";
 import { timeline } from "@/lib/dday";
 import type { Prisma } from "@/generated/prisma/client";
-import { deadlineAlertText, deadlineBucket, digestText, reviewRequestText, type NotifyItem } from "./messages";
+import { deadlineAlertText, deadlineBucket, digestText, mention, reviewRequestText, workRequestText, type NotifyItem } from "./messages";
 import { postSlack, slackConfigured } from "./slack";
+import { requestHref } from "@/lib/requests";
 
 const DAY = 86_400_000;
 /** Slack 링크의 앱 주소. 배포(Amplify 웹·Fargate 워커)는 APP_BASE_URL을 꼭 넣는다. APP_PUBLIC_DOMAIN은 도메인만 줄 때 */
@@ -106,7 +107,7 @@ export async function sendDeadlineAlerts(opts: SendOpts = {}): Promise<SendResul
 // ── 공통 ─────────────────────────────────────────────
 
 async function deliver(
-  kind: "digest" | "deadline" | "review",
+  kind: "digest" | "deadline" | "review" | "request",
   text: string,
   itemCount: number,
   dedupeKey: string | null,
@@ -169,4 +170,38 @@ export async function sendReviewRequest(applicationId: string, userId: string | 
     now,
   );
   return deliver("review", text, 1, null, { manual: true, userId }, []);
+}
+
+/** 구성원 요청 알림. Slack이 없거나 이미 끝난 요청이면 보내지 않는다. 실패는 기록만 */
+export async function sendWorkRequest(requestId: string): Promise<SendResult | null> {
+  if (!slackConfigured()) return null;
+  const r = await prisma.workRequest.findUnique({
+    where: { id: requestId },
+    select: {
+      kind: true,
+      status: true,
+      applicationId: true,
+      sectionTitle: true,
+      section: { select: { order: true, draft: { select: { version: true } } } },
+      message: true,
+      dueAt: true,
+      fromId: true,
+      from: { select: { name: true, email: true } },
+      to: { select: { name: true, email: true, slackUserId: true } },
+      application: { select: { announcement: { select: { title: true } } } },
+    },
+  });
+  if (!r || r.status !== "open") return null;
+  const base = appBaseUrl();
+  const text = workRequestText({
+    kind: r.kind,
+    to: mention(r.to),
+    from: r.from.name ?? r.from.email ?? "구성원",
+    title: r.application.announcement.title,
+    url: base ? `${base}${requestHref(r.applicationId, r.section)}` : null,
+    sectionTitle: r.sectionTitle,
+    message: r.message,
+    dueAt: r.dueAt,
+  });
+  return deliver("request", text, 1, null, { manual: true, userId: r.fromId }, []);
 }

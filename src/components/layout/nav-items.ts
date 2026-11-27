@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Clock3, FileText, House, List, Star, type LucideIcon } from "lucide-react";
+import { BriefcaseBusiness, Clock3, FileText, House, Inbox, List, Star, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -16,6 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/announcements", label: "전체 공고", shortLabel: "공고", icon: List, inTabBar: true },
   { href: INTERESTED_HREF, label: "관심 공고", shortLabel: "관심", icon: Star, inTabBar: false },
   { href: "/board", label: "초안·리뷰", shortLabel: "보드", icon: FileText, inTabBar: true },
+  { href: "/requests", label: "요청", shortLabel: "요청", icon: Inbox, inTabBar: true },
   { href: "/history", label: "지원 이력", shortLabel: "이력", icon: Clock3, inTabBar: false },
   { href: "/company", label: "회사 프로필", shortLabel: "프로필", icon: BriefcaseBusiness, inTabBar: true },
 ];

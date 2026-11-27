@@ -2,7 +2,8 @@
 import { ddayLabel, timeline } from "@/lib/dday";
 import { kstYmd } from "@/lib/kst";
 import { STATUS_STYLE, type ApplicationStatus } from "@/lib/status";
-import { link } from "./slack";
+import { esc, link } from "./slack";
+import { REQUEST_KIND, type RequestKind } from "@/lib/requests";
 
 export type NotifyItem = {
   applicationId: string;
@@ -82,5 +83,30 @@ export function reviewRequestText(r: {
     `리뷰어: ${r.reviewers.length ? r.reviewers.join(", ") : "아직 없음"} · 섹션 ${r.sections}개${r.checks ? ` · 확인 필요 ${r.checks}곳` : ""}`,
   ];
   if (r.note) lines.push(`메모: ${r.note.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]!)}`);
+  return lines.join("\n");
+}
+
+/** Slack 멘션: 멤버 ID(U…/W…)가 있으면 <@ID>, 없으면 이름 */
+export function mention(u: { name: string | null; email: string | null; slackUserId: string | null }) {
+  if (u.slackUserId && /^[UW][A-Z0-9]{2,}$/.test(u.slackUserId)) return `<@${u.slackUserId}>`;
+  return `*${esc(u.name ?? u.email ?? "구성원")}*`;
+}
+
+/** 구성원 요청: "@받는사람 님, 보낸사람님이 <링크|공고명> ‘섹션’ 보강을 요청했어요" + 메시지·기한 */
+export function workRequestText(r: {
+  kind: RequestKind;
+  to: string; // mention() 결과
+  from: string;
+  title: string;
+  url: string | null;
+  sectionTitle: string | null;
+  message: string;
+  dueAt: Date | null;
+}) {
+  const what = `${link(r.url, r.title)}${r.sectionTitle ? ` ‘${esc(r.sectionTitle)}’` : ""}`;
+  const lines = [`${r.to} 님, ${esc(r.from)}님이 ${what} ${REQUEST_KIND[r.kind].verb} 요청했어요`];
+  const msg = r.message.trim();
+  if (msg) lines.push(...msg.split("\n").slice(0, 6).map((l) => `> ${esc(l)}`));
+  if (r.dueAt) lines.push(`기한: ${md(r.dueAt)}까지`);
   return lines.join("\n");
 }

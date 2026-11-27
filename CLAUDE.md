@@ -49,11 +49,11 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 ```
 
 처음 세팅: `cp .env.example .env` → `AUTH_SECRET`(openssl rand -base64 32) 채우기 → 위 순서대로.
-로그인은 없다. 모두 공용 팀 계정 하나로 쓴다(`src/server/session.ts`). 배포 주소는 Amplify Access control(비밀번호)로 막는다.
+로그인은 이메일·비밀번호(`/login`, 가입은 `?mode=signup`). 가입할 때 **소속 회사**를 넣고, 등록된 `Company.name`과 맞아야 한다((주)·주식회사·띄어쓰기 무시, `normalizeCompanyName`). 회사를 새로 만들지는 않는다. 처음엔 `pnpm db:seed`로 회사를 만든 뒤 가입한다. 배포 주소는 Amplify Access control로 한 겹 더 막아도 된다.
 
 ## 구현 메모 (M0에서 정한 것)
 - Next.js 16: `middleware`는 `src/proxy.ts`(지금은 없음). `cacheComponents` 켜져 있음 → DB를 읽는 컴포넌트는 `<Suspense>` 안에 두고 `connection()`/`requireUser()`로 요청 시점에 읽는다. 버전별 API는 `node_modules/next/dist/docs/`를 먼저 본다 (AGENTS.md)
-- 데이터 접근 전 `src/server/session.ts`의 `requireUser()`: 요청 시점으로 만들고(`connection()`), 연결 키를 읽고, 공용 팀 계정(`team@kairos.local`)을 돌려준다. 상태 변경·코멘트의 작성자는 이 계정
+- 데이터 접근 전 `src/server/session.ts`의 `requireUser()`: 요청 시점으로 만들고(`connection()`), 세션 쿠키(`kairos_session`, DB `Session.id`=토큰 sha256)로 사용자를 찾고(없으면 `/login`), 연결 키를 읽는다. `CurrentUser.companyId`로 같은 회사 데이터만. 비밀번호는 `src/server/auth/password.ts`(scrypt). 예전 공용 팀 계정(`team@kairos.local`)은 기록으로만 남고 로그인할 수 없다(같은 이메일로 가입하면 이어받음)
 - Tailwind v4: 토큰 매핑은 `src/app/globals.css`의 `@theme inline`. 값 자체는 `design/tokens.css`만 고친다. 기본 스타일은 `@layer base` 안에(밖에 두면 유틸리티를 덮어씀)
 - Prisma 7: 설정은 `prisma.config.ts`, 클라이언트는 `src/generated/prisma`(커밋 안 함), `@prisma/adapter-pg` 사용
 - 상태 표기·색은 `src/lib/status.ts`, KST 날짜 계산은 `src/lib/kst.ts`, D-day·타임라인은 `src/lib/dday.ts`만 쓴다
@@ -109,6 +109,12 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 - `<details>` 팝오버는 `src/components/ui/useDismiss.ts`로 바깥 클릭·Esc 닫기
 - "로/으로"는 `withRo()` (`src/lib/format.ts`)
 - Tailwind 브레이크포인트는 **rem으로만** (`--breakpoint-xl: 75rem`, 임의 값도 `min-[87.5rem]:`). px로 쓰면 sm/md(rem)보다 앞에 정렬돼 덮어써진다
+
+## 구성원·요청
+- 구성원 = 같은 `companyId`의 가입한 사용자(`passwordHash` 있음). 회사 프로필 → "구성원" 탭(목록, 내 이름·Slack 멤버 ID, 로그아웃)
+- 요청 `WorkRequest`(작성·보강·리뷰·기타, 지원 단위 + 섹션 선택, 기한은 KST 그날 끝): `src/server/requests.ts`에서만 만들고 바꾼다(받는 사람·지원·섹션이 내 회사 것인지 확인). 리뷰 요청은 리뷰어로도 지정
+- 화면: 초안 화면 오른쪽 "요청" 패널(`RequestForm`·`RequestCard`), 사이드바 "요청" `/requests`(받은/보낸 × 진행 중/끝남, 배지 = 나에게 온 진행 중). 받은 사람은 완료·거절(사유 필수), 보낸 사람은 취소, 끝난 건 둘 다 다시 열기
+- 알림은 `runInBackground({ kind: "work-request" })` → `sendWorkRequest()`(팀 채널 웹훅, Slack 멤버 ID가 있으면 `<@U…>` 멘션). 표기는 `src/lib/requests.ts`
 
 ## 응답 뒤 작업
 - 초안·점수·게시판 확인·리뷰 요청 Slack은 `src/server/jobs/background.ts`의 `runInBackground(job)`으로만 (`after()` 직접 쓰지 않기). 작업 내용은 `jobs/handlers.ts`의 `runJob()` 한 곳

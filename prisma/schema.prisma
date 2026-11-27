@@ -11,7 +11,8 @@ datasource db {
   provider = "postgresql"
 }
 
-// ── 사용자 (로그인 없음: 공용 팀 계정 하나 + 예전 구글 로그인 사용자. src/server/session.ts) ──
+// ── 사용자 (이메일·비밀번호 로그인, 가입할 때 소속 회사를 고른다. src/server/session.ts) ──
+// 예전 공용 팀 계정(team@kairos.local)·구글 로그인 사용자는 작성자 기록으로만 남는다 (비밀번호 없음 → 같은 이메일로 가입하면 이어받음)
 
 model User {
   id                String             @id @default(cuid())
@@ -19,12 +20,32 @@ model User {
   email             String?            @unique
   emailVerified     DateTime?
   image             String?
+  passwordHash      String? // scrypt (src/server/auth/password.ts)
+  companyId         String?
+  company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  slackUserId       String? // Slack 멘션용 (U로 시작하는 멤버 ID). 없으면 이름만
+  sessions          Session[]
+  requestsSent      WorkRequest[]      @relation("RequestFrom")
+  requestsReceived  WorkRequest[]      @relation("RequestTo")
   applicationEvents ApplicationEvent[]
   drafts            Draft[]
   comments          ReviewComment[]    @relation("CommentAuthor")
   resolvedComments  ReviewComment[]    @relation("CommentResolver")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+
+  @@index([companyId])
+}
+
+/// 로그인 세션. id = 쿠키 토큰의 sha256 (토큰 자체는 저장하지 않는다)
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // ── 회사 (지금은 1개. 확장 여지로 다른 테이블은 companyId를 둔다) ──
@@ -60,6 +81,8 @@ model Company {
   exclusionRules ExclusionRule[]
   matches        Match[]
   applications   Application[]
+  members        User[]
+  workRequests   WorkRequest[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
@@ -302,6 +325,7 @@ model Application {
   deadlineAlerts  DeadlineAlert[]
   drafts          Draft[]
   requiredDocs    RequiredDoc[]
+  workRequests    WorkRequest[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
@@ -330,6 +354,7 @@ enum NotificationKind {
   digest // 주간 다이제스트 (월 09:00)
   deadline // 마감 알림 (D-7/D-3/D-1)
   review // 리뷰 요청 (M5)
+  request // 구성원 요청 (작성·보강·리뷰)
 }
 
 /// Slack으로 보낸 메시지 기록. dedupeKey는 일정 발송이 성공했을 때만 채워 같은 주·같은 날 중복 발송을 막는다
@@ -418,6 +443,7 @@ model DraftSection {
   /// 마지막으로 AI가 쓴 본문 (사람이 고친 뒤 "AI 초안과 비교"용)
   aiContent     String?
   comments      ReviewComment[]
+  workRequests  WorkRequest[]
   /// 【확인 필요】 목록 (모델이 준 것 + 본문에서 찾은 것)
   needsCheck    String[]
   /// 양식 채우기 초안(templateSource=fill)의 칸: { kind: text|choice, mode, prefix, hint, options, multi } (src/server/docs/hwpForm.ts FormField)
@@ -473,6 +499,51 @@ model ReviewComment {
   updatedAt    DateTime     @updatedAt
 
   @@index([sectionId, createdAt])
+}
+
+// ── 구성원 요청 ─────────────────────────────
+
+enum WorkRequestKind {
+  write // 작성 요청
+  supplement // 보강 요청
+  review // 리뷰 요청
+  other // 기타
+}
+
+enum WorkRequestStatus {
+  open
+  done
+  declined
+  canceled
+}
+
+/// 같은 회사 구성원에게 보내는 요청. 지원(Application) 단위, 섹션은 골랐을 때만 (src/server/requests.ts)
+model WorkRequest {
+  id            String            @id @default(cuid())
+  companyId     String
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applicationId String
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// 초안 버전의 섹션. 새 버전을 만들어도 sectionTitle로 어느 섹션인지 남는다
+  sectionId     String?
+  section       DraftSection?     @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  sectionTitle  String?
+  kind          WorkRequestKind
+  status        WorkRequestStatus @default(open)
+  fromId        String
+  from          User              @relation("RequestFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId          String
+  to            User              @relation("RequestTo", fields: [toId], references: [id], onDelete: Cascade)
+  message       String
+  dueAt         DateTime? // KST 그날 끝까지
+  reply         String? // 완료·거절할 때 남긴 말
+  respondedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([toId, status])
+  @@index([fromId, status])
+  @@index([applicationId])
 }
 
 // 화면에서 넣은 연결 키 (Anthropic·Slack·기업마당·공공데이터포털). AUTH_SECRET으로 AES-256-GCM 암호화.

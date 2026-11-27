@@ -17,12 +17,17 @@ import { formatKstRelative } from "@/lib/format";
 import { KeyButton } from "@/components/settings/KeyButton";
 import { KEY_INFO, keyViews } from "@/server/keyViews";
 import { SECRET_NAMES } from "@/server/secrets";
+import { companyMembers } from "@/server/requests";
+import { logout } from "@/app/login/actions";
+import { Avatar } from "@/components/ui/Avatar";
+import { MyProfileForm } from "@/components/company/MyProfileForm";
 
-type Tab = "basic" | "items" | "rules" | "notify" | "keys";
+type Tab = "basic" | "items" | "rules" | "members" | "notify" | "keys";
 const TABS: { key: Tab; label: string }[] = [
   { key: "basic", label: "기본 정보" },
   { key: "items", label: "아이템 카드" },
   { key: "rules", label: "제외 규칙" },
+  { key: "members", label: "구성원" },
   { key: "notify", label: "Slack 알림" },
   { key: "keys", label: "연결 키" },
 ];
@@ -36,7 +41,7 @@ export default function CompanyPage({ searchParams }: { searchParams: Promise<{ 
 }
 
 async function CompanyContent({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  await requireUser();
+  const me = await requireUser();
   const { tab: rawTab } = await searchParams;
   const tab: Tab = TABS.some((t) => t.key === rawTab) ? (rawTab as Tab) : "basic";
   const company = await getCompany();
@@ -96,6 +101,8 @@ async function CompanyContent({ searchParams }: { searchParams: Promise<{ tab?: 
           })}
         />
       ) : null}
+
+      {tab === "members" ? <Members meId={me.id} companyId={me.companyId} companyName={company.name} /> : null}
 
       {tab === "notify" ? <NotifySettings /> : null}
 
@@ -162,12 +169,65 @@ async function NotifySettings() {
               <li key={n.id} className="flex flex-wrap gap-x-2 text-ink-2">
                 <span className="text-ink-3">{formatKstRelative(n.createdAt, now)}</span>
                 <span>
-                  {n.kind === "digest" ? "주간 다이제스트" : "마감 알림"} {n.itemCount}건{n.manual ? " (수동)" : ""}
+                  {{ digest: "주간 다이제스트", deadline: "마감 알림", review: "리뷰 요청", request: "구성원 요청" }[n.kind]} {n.itemCount}건{n.manual ? " (수동)" : ""}
                 </span>
                 <span className={n.ok ? "text-ink-3" : "text-urgent-text"}>{n.ok ? "보냄" : `실패 · ${n.error}`}</span>
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/** 같은 회사 구성원. 가입할 때 소속 회사를 넣은 사람들. 내 줄에서 이름·Slack 멤버 ID를 고친다 */
+async function Members({ meId, companyId, companyName }: { meId: string; companyId: string; companyName: string }) {
+  const now = new Date();
+  const members = await companyMembers(companyId);
+  const me = members.find((m) => m.id === meId);
+  return (
+    <div className="flex flex-col gap-5">
+      <section aria-labelledby="members-title" className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6">
+        <div className="flex flex-col gap-1">
+          <h2 id="members-title" className="m-0 text-[17px] font-bold">
+            {companyName} 구성원 {members.length}명
+          </h2>
+          <p className="m-0 text-[13px] leading-[1.6] text-ink-3">회원가입할 때 소속 회사를 ‘{companyName}’로 넣으면 여기에 들어와요. 구성원끼리 초안 화면에서 작성·보강·리뷰를 요청할 수 있어요.</p>
+        </div>
+        <ul className="m-0 flex list-none flex-col p-0">
+          {members.map((m) => (
+            <li key={m.id} className="flex items-center gap-3 border-b border-line py-3 last:border-b-0">
+              <Avatar name={m.name} email={m.email} size={32} />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="text-[14px] font-semibold text-ink">
+                  {m.name ?? m.email}
+                  {m.id === meId ? <span className="ml-1.5 text-[12px] font-medium text-ink-3">나</span> : null}
+                </span>
+                <span className="truncate text-[12px] text-ink-3">{m.email}</span>
+              </div>
+              <span className="hidden text-[12px] text-ink-3 md:inline">{m.slackUserId ? "Slack 멘션 연결됨" : "Slack 멘션 없음"}</span>
+              <span className="text-[12px] text-ink-3">{formatKstRelative(m.createdAt, now)} 가입</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      {me ? (
+        <section aria-labelledby="me-title" className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <h2 id="me-title" className="m-0 text-[17px] font-bold">
+                내 정보
+              </h2>
+              <p className="m-0 text-[13px] text-ink-3">{me.email}</p>
+            </div>
+            <form action={logout}>
+              <button type="submit" className={buttonClass("soft", "sm")}>
+                로그아웃
+              </button>
+            </form>
+          </div>
+          <MyProfileForm name={me.name ?? ""} slackUserId={me.slackUserId ?? ""} />
         </section>
       ) : null}
     </div>
