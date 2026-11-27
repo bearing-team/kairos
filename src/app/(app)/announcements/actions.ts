@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
-import { refreshMatches, scorePending } from "@/server/matching/run";
+import { refreshMatches } from "@/server/matching/run";
+import { runInBackground } from "@/server/jobs/background";
 import { llmConfigured } from "@/server/llm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -120,7 +120,7 @@ export async function saveManualAnnouncement(_prev: SaveState, fd: FormData): Pr
   const newId = saved.createdIds[0];
   if (newId) {
     await refreshMatches({ announcementIds: [newId] });
-    if (llmConfigured()) after(() => scorePending().catch((e) => console.error("[score]", e)));
+    if (llmConfigured()) await runInBackground({ kind: "score-pending" });
   }
   revalidatePath("/", "layout");
   redirect(newId ? `/announcements/${newId}` : "/announcements?source=manual");

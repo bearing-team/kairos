@@ -6,6 +6,8 @@ export const QUEUES = {
   scorePending: "score-pending",
   notifyDigest: "notify-digest",
   notifyDeadline: "notify-deadline",
+  // 웹이 맡긴 응답 뒤 작업 (BACKGROUND_JOBS=queue일 때, jobs/background.ts)
+  background: "background",
 } as const;
 
 export const SCHEDULES: { queue: string; cron: string }[] = [

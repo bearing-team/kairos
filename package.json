@@ -27,6 +27,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",
     "@auth/prisma-adapter": "^2.11.3",
+    "@aws-sdk/client-s3": "^3.1178.0",
     "@mozilla/readability": "^0.6.0",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
@@ -58,7 +59,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
-    "railway": "3.18.0",
     "tailwindcss": "4.3.3",
     "typescript": "^5",
     "vitest": "^3.2.7"

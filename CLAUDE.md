@@ -34,7 +34,7 @@ pnpm install          # 의존성 + prisma generate (postinstall)
 pnpm db:up            # 로컬 Postgres (docker, 호스트 포트 5433)
 pnpm db:migrate       # 마이그레이션 + 클라이언트 생성
 pnpm db:seed          # 회사 1개(베어링(주)) 생성
-pnpm db:deploy        # 배포용: migrate deploy + 시드(회사 없을 때만). Railway 웹의 배포 전 명령
+pnpm db:deploy        # 배포용: migrate deploy + 시드(회사 없을 때만). Amplify 빌드의 preBuild
 pnpm dev              # 개발 서버 http://localhost:3000
 pnpm test             # vitest
 pnpm lint / pnpm typecheck / pnpm build
@@ -82,7 +82,7 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 - 1차 분류는 상세 화면에서: 분류 전(new·triage) 공고 상세 아래 `TriageBar`(관심 → `interested` / 관심 없음 → `excluded` + 사유 칩 / 건너뛰기) → 다음 분류 전 공고로. 순서는 `unsortedQueue()`(목록 "분류 전" 탭 기본 정렬과 같음), 목록의 "분류 시작"이 첫 공고. 되돌리기 토스트는 `(app)/layout`의 `TriageProvider`(`components/announcements/Triage.tsx`, 액션 `quickTriage`). 목록 줄에는 분류 버튼을 두지 않는다(제목만 보고 고르지 않게). 사이드바 "관심 공고" = `/announcements?status=interested`
 - 하드필터는 확실할 때만 제외한다. 애매하면 통과 + `filterNotes`(→ LLM 입력, 상세의 "확인 필요")
 - 상태 전이는 `src/lib/transitions.ts`로 서버에서만 검증, 변경은 `setStatus()`로 해서 `ApplicationEvent`가 남게 한다. 사람이 정한 상태는 하드필터가 덮어쓰지 않는다(`autoExcluded`만 자동 복귀)
-- 회사 프로필·제외 규칙 저장 → `refreshMatches()` 바로. 소싱·URL 추가 → 규칙 검사 바로, 점수는 `after()`로 응답 뒤에
+- 회사 프로필·제외 규칙 저장 → `refreshMatches()` 바로. 소싱·URL 추가 → 규칙 검사 바로, 점수는 `runInBackground()`로 응답 뒤에
 - `src/server/{llm,company,matches,matching/*,notify/*}.ts`는 tsx 스크립트·워커에서도 쓰므로 `server-only`를 붙이지 않는다
 
 ## 알림 (M3)
@@ -93,7 +93,7 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 - 로컬 확인은 가짜 웹훅(`SLACK_WEBHOOK_URL=http://127.0.0.1:<port>/…`)으로. 실제 팀 채널로 테스트 발송은 사람이 한다
 
 ## 초안 (M4)
-- 흐름: drafting 전환·"초안 만들기" → `createDraft()` → `after(runDraft)`: `drafting/attachments.ts`(상세 페이지 다시 열어 새 링크 → 내려받기 → `storage/` → `server/docs` 파싱) → `form-sections.v1`(섹션·평가 기준·제출 서류) → `draft-section.v1`(섹션마다). 자세한 건 ARCHITECTURE 6절
+- 흐름: drafting 전환·"초안 만들기" → `createDraft()` → `runInBackground({ kind: "draft-run" })`: `drafting/attachments.ts`(상세 페이지 다시 열어 새 링크 → 내려받기 → `storage/` → `server/docs` 파싱) → `form-sections.v1`(섹션·평가 기준·제출 서류) → `draft-section.v1`(섹션마다). 자세한 건 ARCHITECTURE 6절
 - 파서는 Node만 (`src/server/docs/`, doc-worker 없음 — `docs/forms-parsing.md`). unpdf는 0.12.1 고정 (2.x는 Node 22 필요)
 - 양식 채우기(`templateSource=fill`): 짧은 HWP 서식(참여의향서·신청서)에서 `src/server/docs/hwpForm.ts`의 `readHwpForm()`이 표의 "제목 칸 → 값 칸"(빈 칸, `(휴대전화)` 머리말 칸, `(예시)` 칸, `□` 보기 칸)을 칸으로 찾으면 섹션 대신 칸(`DraftSection.field`)을 만들고 `form-fill.v1`로 한 번에 채운다. 모르는 칸은 빈 값 + 확인 필요(HWP에 【확인 필요】 글자를 넣지 않음). 화면은 `FormFillSheet`, 받기는 `/api/drafts/[id]/export?format=hwp` → `fillHwp()`(원본 레코드를 그대로 두고 값 칸 문단만 고침, 고른 보기는 □→■). 인적사항은 회사 프로필 "신청서 인적사항"(주소·대표자·담당자·연락처). HWPX 양식은 아직 서술형으로
 - `【확인 필요: …】` 찾기·하이라이트·글자 수는 `src/lib/needsCheck.ts`만 쓴다. 색은 토큰 `check-bg`/`check-fg`
@@ -110,8 +110,17 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 - "로/으로"는 `withRo()` (`src/lib/format.ts`)
 - Tailwind 브레이크포인트는 **rem으로만** (`--breakpoint-xl: 75rem`, 임의 값도 `min-[87.5rem]:`). px로 쓰면 sm/md(rem)보다 앞에 정렬돼 덮어써진다
 
-## 배포 (Railway)
-- 설정은 `.railway/railway.ts`(Railway IaC, `railway/iac`)만. `railway.json`/`railway.toml`은 2026-12-01부터 안 읽힘 → 만들지 않는다. 순서는 `docs/DEPLOY.md`
-- 서비스: `postgres`, `web`(볼륨 `/data`, `STORAGE_DIR=/data/storage`, 헬스체크 `/api/health`), `worker`(`pnpm worker`). Node 22
-- 비밀값은 파일에 쓰지 않고 `preserve()` (공개 저장소). 워커·배포 전 명령이 런타임에 쓰는 `prisma`·`tsx`·`dotenv`는 dependencies에 둔다
-- Slack 링크 주소: `APP_BASE_URL` → 없으면 `APP_PUBLIC_DOMAIN`/`RAILWAY_PUBLIC_DOMAIN`
+## 응답 뒤 작업
+- 초안·점수·게시판 확인·리뷰 요청 Slack은 `src/server/jobs/background.ts`의 `runInBackground(job)`으로만 (`after()` 직접 쓰지 않기). 작업 내용은 `jobs/handlers.ts`의 `runJob()` 한 곳
+- 기본(로컬)은 `after()`로 웹에서 바로. `BACKGROUND_JOBS=queue`면 pg-boss `background` 큐 → 워커가 처리 (Amplify는 서버리스라 응답 뒤 작업이 보장되지 않음). 로컬에서 큐 모드를 보려면 `pnpm worker`를 같이 띄운다
+- 새 작업 종류는 `BackgroundJob` 유니온에 추가. 데이터는 JSON으로 직렬화되니 id만 넘긴다
+
+## 배포 (AWS: Amplify + Fargate)
+- 웹: Amplify Hosting, `amplify.yml`. Next 16은 Amplify의 Next.js 자동 지원(15까지) 밖이라 **배포 명세**로 올린다: `NEXT_OUTPUT=standalone pnpm build` → `scripts/amplify-bundle.mjs`가 `.amplify-hosting/`(compute/default + static + deploy-manifest) 생성. 컴퓨트 묶음은 220MB 제한(지금 약 55MB) → `next.config.ts`의 `outputFileTracingExcludes`
+- Amplify 콘솔 환경 변수는 SSR 런타임에 안 들어간다 → `amplify-bundle.mjs`의 `RUNTIME_ENV`만 `server-env.json`으로 묶는다. 런타임에 쓰는 환경 변수를 새로 만들면 거기에도 추가
+- 파일 경로를 `process.env` 등 동적 값으로 만들면 Turbopack이 프로젝트 전체를 묶는다(.env까지) → `/*turbopackIgnore: true*/` 또는 고정 하위 폴더로
+- 워커·AWS 리소스: `infra/aws/kairos.yml`(CloudFormation: S3·ECR·ECS Fargate·IAM), 이미지 `Dockerfile.worker`, 배포 `.github/workflows/worker.yml`(main 푸시 → ECR → 서비스 재배포). 워커 비밀값은 SSM `/kairos/*`
+- DB는 Neon. 웹은 풀러 주소 `DATABASE_URL`, 마이그레이션·워커는 직접 주소 `DATABASE_URL_UNPOOLED`
+- 파일은 `STORAGE_DRIVER=s3`(Amplify 컴퓨트 역할·ECS 작업 역할로 접근, 키 없음)
+- 순서는 `docs/DEPLOY.md`. 워커·빌드가 런타임에 쓰는 `prisma`·`tsx`·`dotenv`는 dependencies에 둔다
+- Slack 링크 주소: `APP_BASE_URL` (웹·워커 둘 다)

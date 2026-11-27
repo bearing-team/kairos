@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/server/session";
 import { prisma } from "@/server/db";
 import { llmConfigured } from "@/server/llm";
 import { transition } from "@/server/applications";
-import { activeDraft, createDraft, generateSections, runDraft } from "@/server/drafting/run";
+import { activeDraft, createDraft } from "@/server/drafting/run";
+import { runInBackground } from "@/server/jobs/background";
 import { charCount, extractChecks } from "@/lib/needsCheck";
 
 export type DraftActionState = { ok: boolean; message: string } | null;
@@ -30,7 +30,7 @@ export async function startDraft(applicationId: string, _prev: DraftActionState)
   }
   const { id, created } = await createDraft(applicationId, user.id);
   if (!created) return { ok: false, message: "초안을 만드는 중이에요. 끝나면 다시 눌러 주세요" };
-  after(() => runDraft(id).catch((e) => console.error("[draft]", e)));
+  await runInBackground({ kind: "draft-run", draftId: id });
   revalidatePath("/", "layout");
   return { ok: true, message: "첨부 양식을 받아 초안을 쓰기 시작했어요" };
 }
@@ -69,7 +69,7 @@ export async function regenerateSection(sectionId: string, mode: keyof typeof IN
   if (!s) return { ok: false, message: "섹션을 찾지 못했어요" };
   if (s.status === "generating" && Date.now() - s.updatedAt.getTime() < STALE_MS) return { ok: false, message: "이미 쓰는 중이에요" };
   await prisma.draftSection.update({ where: { id: sectionId }, data: { status: "generating", error: null } });
-  after(() => generateSections(s.draftId, { sectionIds: [sectionId], instruction: INSTRUCTIONS[mode] }).catch((e) => console.error("[draft]", e)));
+  await runInBackground({ kind: "draft-sections", draftId: s.draftId, sectionIds: [sectionId], instruction: INSTRUCTIONS[mode] });
   revalidatePath("/applications/[id]/draft", "page");
   return { ok: true, message: "다시 쓰는 중이에요" };
 }
@@ -81,7 +81,7 @@ export async function generateMissing(draftId: string, _prev: DraftActionState):
   const n = await prisma.draftSection.count({ where: { draftId, status: { in: ["empty", "failed"] } } });
   if (!n) return { ok: false, message: "쓸 섹션이 없어요" };
   await prisma.draft.update({ where: { id: draftId }, data: { status: "generating" } });
-  after(() => generateSections(draftId).catch((e) => console.error("[draft]", e)));
+  await runInBackground({ kind: "draft-sections", draftId });
   revalidatePath("/applications/[id]/draft", "page");
   return { ok: true, message: `${n}개 섹션을 쓰는 중이에요` };
 }

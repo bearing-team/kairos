@@ -1,0 +1,12 @@
+node_modules
+.next
+.amplify-hosting
+.git
+.env*
+!.env.example
+storage
+fixtures
+design
+docs
+src/generated
+*.tsbuildinfo

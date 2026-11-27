@@ -1,0 +1,25 @@
+# AWS Amplify Hosting 빌드 설정. 순서·환경 변수는 docs/DEPLOY.md
+# Next 16은 Amplify의 Next.js 자동 지원(15까지) 밖이라 배포 명세(.amplify-hosting)로 올린다 → scripts/amplify-bundle.mjs
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm install 22 && nvm use 22
+        - corepack enable && corepack prepare pnpm@9.3.0 --activate
+        # standalone에 심볼릭 링크가 섞이지 않게 hoisted로 설치 (postinstall에서 prisma generate)
+        - pnpm install --frozen-lockfile --config.node-linker=hoisted
+        # 마이그레이션 + 회사가 없을 때만 시드. 직접 주소(DATABASE_URL_UNPOOLED)가 있으면 그쪽으로 (prisma.config.ts)
+        - pnpm db:deploy
+    build:
+      commands:
+        - NEXT_OUTPUT=standalone pnpm build
+        - node scripts/amplify-bundle.mjs
+  artifacts:
+    baseDirectory: .amplify-hosting
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - .next/cache/**/*
+      - node_modules/.cache/**/*

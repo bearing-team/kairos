@@ -1,4 +1,4 @@
-// Railway 헬스체크 (로그인 없이). DB까지 닿는지만 본다. 비밀값·내부 정보는 내보내지 않는다
+// 헬스체크 (로그인 없이). DB까지 닿는지만 본다. 비밀값·내부 정보는 내보내지 않는다
 import { connection } from "next/server";
 import { prisma } from "@/server/db";
 

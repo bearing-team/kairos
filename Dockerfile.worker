@@ -1,0 +1,20 @@
+# pg-boss 워커 이미지 (ECS Fargate). 일정 작업(소싱·점수·Slack) + 웹이 맡긴 응답 뒤 작업(초안 등)
+# 빌드: docker build -f Dockerfile.worker -t kairos-worker .   배포 순서는 docs/DEPLOY.md
+FROM node:22-slim
+
+ENV NODE_ENV=production \
+    TZ=Asia/Seoul
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.3.0 --activate
+
+# 의존성 먼저 (소스만 바뀌면 이 층은 캐시). postinstall의 prisma generate에 스키마·설정이 필요
+COPY package.json pnpm-lock.yaml prisma.config.ts ./
+COPY prisma ./prisma
+RUN pnpm install --frozen-lockfile
+
+COPY tsconfig.json worker.ts ./
+COPY src ./src
+
+USER node
+# pnpm worker와 같다 (런타임에 corepack이 pnpm을 다시 받지 않게 tsx를 바로)
+CMD ["node_modules/.bin/tsx", "worker.ts"]

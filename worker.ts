@@ -7,9 +7,12 @@ import { SOURCE_LABEL, syncSource, type ApiSource } from "@/server/sources/sync"
 import { describeMatch, matchAfterSync } from "@/server/matching/pipeline";
 import { checkAllBoards } from "@/server/sources/boards";
 import { describeSend, sendDeadlineAlerts, sendDigest } from "@/server/notify/run";
+import { describeJob, runJob, type BackgroundJob } from "@/server/jobs/handlers";
 
 async function main() {
-  const boss = new PgBoss({ connectionString: process.env.DATABASE_URL!, schema: "pgboss" });
+  // 풀러(Neon pooled)를 거치지 않는 직접 주소가 있으면 그쪽으로 (pg-boss는 오래 붙어 있는 연결을 쓴다)
+  const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL!;
+  const boss = new PgBoss({ connectionString, schema: "pgboss" });
   boss.on("error", (e) => console.error("[pg-boss]", e));
   await boss.start();
 
@@ -43,6 +46,22 @@ async function main() {
 
   await work(QUEUES.notifyDigest, async () => console.log(`[digest] ${describeSend(await sendDigest())}`));
   await work(QUEUES.notifyDeadline, async () => console.log(`[deadline] ${describeSend(await sendDeadlineAlerts())}`));
+
+  // 웹(Amplify)이 맡긴 응답 뒤 작업: 초안·점수·게시판 확인·리뷰 요청. 초안이 오래 걸려도 다른 작업이 밀리지 않게 2개씩
+  const BACKGROUND_SLOTS = 2;
+  for (let i = 0; i < BACKGROUND_SLOTS; i++) {
+    await boss.work<BackgroundJob>(QUEUES.background, { pollingIntervalSeconds: 2 }, async ([job]) => {
+      await ensureSecrets(true);
+      const t = Date.now();
+      try {
+        await runJob(job.data);
+        console.log(`[background] ${describeJob(job.data)} 끝 (${Math.round((Date.now() - t) / 1000)}초)`);
+      } catch (e) {
+        console.error(`[background] ${describeJob(job.data)} 실패`, e);
+        throw e;
+      }
+    });
+  }
 
   console.log(`워커 시작: ${SCHEDULES.map((s) => `${s.queue}@${s.cron}`).join(", ")} (${TZ})`);
 

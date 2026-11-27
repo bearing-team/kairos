@@ -57,3 +57,6 @@ fixtures/forms/*
 !fixtures/forms/README.md
 # 첨부·초안 파일 저장소 (STORAGE_DRIVER=local)
 storage/
+
+# Amplify 배포 묶음 (scripts/amplify-bundle.mjs)
+/.amplify-hosting/

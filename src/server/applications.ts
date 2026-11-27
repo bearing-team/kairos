@@ -1,9 +1,8 @@
 import "server-only";
-import { after } from "next/server";
 import { prisma } from "@/server/db";
 import { setStatus } from "@/server/matching/run";
-import { ensureDraft, runDraft } from "@/server/drafting/run";
-import { sendReviewRequest } from "@/server/notify/run";
+import { ensureDraft } from "@/server/drafting/run";
+import { runInBackground } from "@/server/jobs/background";
 import { checkTransition } from "@/lib/transitions";
 import type { ApplicationStatus } from "@/lib/status";
 
@@ -28,10 +27,10 @@ export async function transition(applicationId: string, to: ApplicationStatus, o
   if (to === "drafting") {
     if (!app.ownerId) await prisma.application.update({ where: { id: applicationId }, data: { ownerId: opts.userId } });
     const draftId = await ensureDraft(applicationId, opts.userId);
-    if (draftId) after(() => runDraft(draftId).catch((e) => console.error("[draft]", e)));
+    if (draftId) await runInBackground({ kind: "draft-run", draftId });
   }
   if (to === "review" && app.status === "drafting") {
-    after(() => sendReviewRequest(applicationId, opts.userId).catch((e) => console.error("[review-notify]", e)));
+    await runInBackground({ kind: "review-request", applicationId, userId: opts.userId });
   }
   return { ok: true, from: app.status };
 }

@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { requireUser } from "@/server/session";
 import { prisma } from "@/server/db";
 import { llmConfigured } from "@/server/llm";
-import { refreshMatches, scorePending } from "@/server/matching/run";
-import { checkBoard, claimBoard } from "@/server/sources/boards";
+import { refreshMatches } from "@/server/matching/run";
+import { claimBoard } from "@/server/sources/boards";
+import { runInBackground } from "@/server/jobs/background";
 import { fetchHtml, normalizeUrl } from "@/server/sources/fetchPage";
 import { canonicalLink, readListPage } from "@/server/sources/boardList";
 import { syncAll, SOURCE_LABEL } from "@/server/sources/sync";
@@ -16,20 +16,8 @@ export type SourceState = { ok: boolean; message: string; errors?: Record<string
 
 const PATH = "/announcements/sources";
 
-/** 응답 뒤에서 게시판 확인 → 새 공고 규칙 검사 → 점수 */
-function checkInBackground(id: string) {
-  after(async () => {
-    try {
-      const r = await checkBoard(id, { claimed: true });
-      if (r.createdIds.length) {
-        await refreshMatches({ announcementIds: r.createdIds });
-        if (llmConfigured()) await scorePending();
-      }
-    } catch (e) {
-      console.error("[board]", e);
-    }
-  });
-}
+/** 응답 뒤에서 게시판 확인 → 새 공고 규칙 검사 → 점수 (jobs/handlers.ts) */
+const checkInBackground = (id: string) => runInBackground({ kind: "board-check", boardId: id });
 
 export async function addBoard(_prev: SourceState, fd: FormData): Promise<SourceState> {
   await requireUser();
@@ -63,7 +51,7 @@ export async function addBoard(_prev: SourceState, fd: FormData): Promise<Source
   const board = await prisma.boardSource.create({
     data: { url, name: (name || title || new URL(url).hostname).slice(0, 80), checkingAt: llmConfigured() ? new Date() : null },
   });
-  if (llmConfigured()) checkInBackground(board.id);
+  if (llmConfigured()) await checkInBackground(board.id);
   revalidatePath(PATH);
   return {
     ok: true,
@@ -75,7 +63,7 @@ export async function checkBoardNow(id: string): Promise<SourceState> {
   await requireUser();
   if (!llmConfigured()) return { ok: false, message: "ANTHROPIC_API_KEY가 없어 게시판을 읽을 수 없어요" };
   if (!(await claimBoard(id))) return { ok: false, message: "이미 확인하는 중이에요" };
-  checkInBackground(id);
+  await checkInBackground(id);
   revalidatePath(PATH);
   return { ok: true, message: "확인을 시작했어요" };
 }
@@ -100,13 +88,13 @@ export async function syncEverythingNow(_prev: SourceState): Promise<SourceState
   await requireUser();
   const results = (await syncAll()).filter((r) => !r.skipped);
   const refresh = results.some((r) => r.ok) ? await refreshMatches() : null;
-  if (refresh?.toScore && llmConfigured()) after(() => scorePending().catch((e) => console.error("[score]", e)));
+  if (refresh?.toScore && llmConfigured()) await runInBackground({ kind: "score-pending" });
 
   let boards = 0;
   if (llmConfigured()) {
     for (const b of await prisma.boardSource.findMany({ where: { enabled: true }, select: { id: true } })) {
       if (await claimBoard(b.id)) {
-        checkInBackground(b.id);
+        await checkInBackground(b.id);
         boards++;
       }
     }
@@ -142,7 +130,7 @@ export async function addNewsletter(_prev: SourceState, fd: FormData): Promise<S
   }
   if (r.announcementIds.length) {
     await refreshMatches({ announcementIds: r.announcementIds });
-    if (llmConfigured()) after(() => scorePending().then(() => undefined).catch((e) => console.error("[newsletter score]", e)));
+    if (llmConfigured()) await runInBackground({ kind: "score-pending" });
   }
   revalidatePath(PATH);
   revalidatePath("/announcements");

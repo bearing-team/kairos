@@ -1,0 +1,249 @@
+# Kairos AWS 리소스 (웹은 Amplify Hosting, 이 스택은 그 밖의 것)
+#   - S3 버킷: 공고 첨부·양식 (웹·워커 같이)
+#   - ECR + ECS Fargate: pg-boss 워커 1개
+#   - IAM: 워커 작업 역할, Amplify SSR 컴퓨트 역할(S3), GitHub Actions 배포 역할(OIDC)
+# 비밀값은 여기 적지 않는다 (공개 저장소). SSM Parameter Store(SecureString)에 먼저 넣는다 → docs/DEPLOY.md
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Kairos worker (ECS Fargate), file bucket, IAM roles
+
+Parameters:
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: 워커를 띄울 퍼블릭 서브넷 (기본 VPC 서브넷이면 충분. NAT 없이 공인 IP로 Neon·외부 API에 나간다)
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  WorkerDesiredCount:
+    Type: Number
+    Default: 0
+    AllowedValues: [0, 1]
+    Description: 처음엔 0(이미지가 아직 없음). 이미지를 올린 뒤 1로 업데이트
+  ImageTag:
+    Type: String
+    Default: latest
+  AppBaseUrl:
+    Type: String
+    Default: ""
+    Description: Slack 메시지 속 링크용 웹 주소 (예 https://main.xxxx.amplifyapp.com)
+  SsmPrefix:
+    Type: String
+    Default: /kairos
+    Description: 비밀값 SSM 경로 접두사 (DATABASE_URL, DATABASE_URL_UNPOOLED, AUTH_SECRET)
+  GitHubRepo:
+    Type: String
+    Default: bearing-team/kairos
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: 이 계정에 token.actions.githubusercontent.com OIDC 공급자가 이미 있으면 false
+
+Conditions:
+  CreateOidc: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+
+Resources:
+  FilesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+
+  FilesAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Kairos attachments bucket read/write
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: [s3:GetObject, s3:PutObject]
+            Resource: !Sub "${FilesBucket.Arn}/attachments/*"
+
+  # Amplify 콘솔 → 앱 설정 → IAM roles → Compute role 에 이 역할을 고른다
+  AmplifyComputeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: amplify.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns: [!Ref FilesAccessPolicy]
+
+  WorkerRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: kairos-worker
+      ImageScanningConfiguration: { ScanOnPush: true }
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep last 10","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}
+
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /kairos/worker
+      RetentionInDays: 30
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: kairos
+
+  WorkerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: read-kairos-secrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [ssm:GetParameters]
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefix}/*"
+
+  WorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns: [!Ref FilesAccessPolicy]
+
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Kairos worker (outbound only)
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  WorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: kairos-worker
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "512"
+      Memory: "1024"
+      RuntimePlatform: { CpuArchitecture: X86_64, OperatingSystemFamily: LINUX }
+      ExecutionRoleArn: !GetAtt WorkerExecutionRole.Arn
+      TaskRoleArn: !GetAtt WorkerTaskRole.Arn
+      ContainerDefinitions:
+        - Name: worker
+          Image: !Sub "${WorkerRepository.RepositoryUri}:${ImageTag}"
+          Essential: true
+          Environment:
+            - { Name: STORAGE_DRIVER, Value: s3 }
+            - { Name: S3_BUCKET, Value: !Ref FilesBucket }
+            - { Name: S3_REGION, Value: !Ref AWS::Region }
+            - { Name: APP_BASE_URL, Value: !Ref AppBaseUrl }
+            - { Name: TZ, Value: Asia/Seoul }
+          Secrets:
+            - { Name: DATABASE_URL, ValueFrom: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefix}/DATABASE_URL" }
+            - { Name: DATABASE_URL_UNPOOLED, ValueFrom: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefix}/DATABASE_URL_UNPOOLED" }
+            - { Name: AUTH_SECRET, ValueFrom: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefix}/AUTH_SECRET" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+
+  WorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: kairos-worker
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref WorkerDesiredCount
+      TaskDefinition: !Ref WorkerTaskDefinition
+      # 새 버전으로 바꿀 때 옛 워커를 먼저 내린다 (워커는 하나만)
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+        DeploymentCircuitBreaker: { Enable: true, Rollback: true }
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref SubnetIds
+          SecurityGroups: [!Ref WorkerSecurityGroup]
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidc
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  # .github/workflows/worker.yml 이 맡는 역할: 이미지 올리기 + 서비스 다시 배포
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubRepo}:ref:refs/heads/main"
+      Policies:
+        - PolicyName: deploy-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: !GetAtt WorkerRepository.Arn
+              - Effect: Allow
+                Action: [ecs:UpdateService, ecs:DescribeServices]
+                Resource: !Ref WorkerService
+
+Outputs:
+  FilesBucketName:
+    Value: !Ref FilesBucket
+  AmplifyComputeRoleArn:
+    Value: !GetAtt AmplifyComputeRole.Arn
+  WorkerRepositoryUri:
+    Value: !GetAtt WorkerRepository.RepositoryUri
+  ClusterName:
+    Value: !Ref Cluster
+  WorkerServiceName:
+    Value: !GetAtt WorkerService.Name
+  GitHubDeployRoleArn:
+    Value: !GetAtt GitHubDeployRole.Arn

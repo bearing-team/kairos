@@ -1,0 +1,53 @@
+# main에 푸시되면 워커 이미지를 ECR에 올리고 Fargate 서비스를 다시 배포한다 (웹은 Amplify가 따로 빌드)
+# 저장소 Variables: AWS_REGION, AWS_WORKER_DEPLOY_ROLE_ARN (infra/aws/kairos.yml 출력 GitHubDeployRoleArn). 없으면 건너뜀
+name: worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "worker.ts"
+      - "prisma/**"
+      - "prisma.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "Dockerfile.worker"
+      - ".github/workflows/worker.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: worker-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.AWS_WORKER_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_WORKER_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        env:
+          REPO: ${{ steps.ecr.outputs.registry }}/kairos-worker
+        run: |
+          docker build -f Dockerfile.worker -t "$REPO:${GITHUB_SHA::12}" -t "$REPO:latest" .
+          docker push "$REPO:${GITHUB_SHA::12}"
+          docker push "$REPO:latest"
+
+      - name: Redeploy service
+        run: |
+          aws ecs update-service --cluster kairos --service kairos-worker --force-new-deployment > /dev/null
+          aws ecs wait services-stable --cluster kairos --services kairos-worker
