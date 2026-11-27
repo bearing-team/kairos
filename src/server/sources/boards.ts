@@ -5,7 +5,7 @@ import { prisma } from "@/server/db";
 import { getLlm, llmConfigured, MODELS } from "@/server/llm";
 import { kstDayStart } from "@/lib/kst";
 import { BOARD_LIST_PROMPT_VERSION, BOARD_LIST_SYSTEM, BoardListSchema, boardListUserMessage } from "@/server/prompts/board-list.v1";
-import { URL_EXTRACT_PROMPT_VERSION } from "@/server/prompts/url-extract.v1";
+import { URL_EXTRACT_PROMPT_VERSION } from "@/server/prompts/url-extract.v2";
 import { readListPage, type ListLink } from "./boardList";
 import { fetchHtml } from "./fetchPage";
 import { extractFromUrl } from "./manual";

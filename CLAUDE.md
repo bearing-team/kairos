@@ -42,6 +42,7 @@ pnpm sync [소스]      # 공고 소싱 1회 (bizinfo | kstartup | boards, 생�
 pnpm sync:probe       # 실제 API 응답을 fixtures/<소스>/live-YYYYMMDD.json으로 저장 (DB에 안 씀)
 pnpm worker           # pg-boss 워커(KST): 매일 08:00 기업마당, 08:05 K-Startup, 08:10 연결한 게시판, 평일 매시 30분 점수 대기분, 월 09:00 다이제스트, 매일 09:05 마감 알림
 pnpm score [개수|all] # 하드필터 다시 + 점수 대기 공고 LLM 점수 (기본 SCORE_MAX_PER_RUN=30)
+pnpm boards:refill    # 접수 기간이 빈 게시판 공고를 다시 읽어(공고문 첨부 포함) 빈 칸만 채움
 pnpm notify <digest|deadline> [--dry-run]  # Slack 다이제스트·마감 알림 지금 보내기 (--dry-run은 출력만)
 pnpm draft <공고 id|application id>  # 첨부 받기 → 양식 읽기 → 섹션별 초안 (새 버전, 상태는 안 바꿈)
 pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 커밋 안 함)
@@ -70,11 +71,11 @@ pnpm forms:measure    # fixtures/forms/ 양식 샘플 파싱 측정 (샘플은 �
 ## 소싱 (M1)
 - 확인된 API 명세: `docs/sources/bizinfo.md`, `docs/sources/kstartup.md`. "아직 확인 못 한 것"은 실제 응답(`pnpm sync:probe`)으로 확인 후 파서를 좁힌다
 - 흐름: `src/server/sources/{bizinfo,kstartup}.ts`(fetch+파싱) → `upsert.ts`(source+externalId upsert, contentHash 변경 감지, dedupeKey로 소스 간 중복을 `duplicateOfId`로 묶음) → `SyncRun` 기록
-- URL 수동 추가: `fetchPage.ts`(내부망 차단, 메뉴·스크립트 뺀 본문 전체) → `manual.ts`(LLM 구조화, 프롬프트 `src/server/prompts/url-extract.v1.ts`) → 사람이 확인 후 저장. `ANTHROPIC_API_KEY`가 없으면 직접 입력
-- 게시판 소스: 헤더 "새 공고 가져오기"(+) → `/announcements/sources`에서 기관 공고 목록 주소를 연결·관리. `boards.ts`의 `checkBoard()`가 목록 → 새 링크만 LLM(`board-list.v1`, 번호로만 고름) → 글마다 `extractFromUrl` → `source=board`로 저장. 판단 끝난 링크는 `BoardSource.knownLinks`. 자세한 건 ARCHITECTURE 4.3.1
+- URL 수동 추가: `fetchPage.ts`(내부망 차단, 메뉴·스크립트 뺀 본문 전체) → `manual.ts`(LLM 구조화, 프롬프트 `src/server/prompts/url-extract.v2.ts`). 본문에 접수 기간이 없으면 `noticeAttachment.ts`가 공고문 첨부(이름에 "공고", 양식 아님)를 받아 `<attachment>`로 같이 넣는다(bipa.kr처럼 본문 없이 첨부만 있는 게시판) → 사람이 확인 후 저장. `ANTHROPIC_API_KEY`가 없으면 직접 입력
+- 게시판 소스: 헤더 "공고 관리하기" → `/announcements/sources`(연결된 소스·가져온 뉴스레터 목록, "새 소스 연결하기"·"지금 모두 가져오기") → `/announcements/sources/new`에서 종류(게시판·뉴스레터, `ConnectSource`의 `KINDS`)를 골라 연결. `boards.ts`의 `checkBoard()`가 목록 → 새 링크만 LLM(`board-list.v1`, 번호로만 고름) → 글마다 `extractFromUrl` → `source=board`로 저장. 판단 끝난 링크는 `BoardSource.knownLinks`. 자세한 건 ARCHITECTURE 4.3.1
 - 게시판 테스트용 목록 원본은 `fixtures/boards/`. 글을 스크립트로 여는 게시판은 연결 때 거절한다(`scriptRows`/`linkRows`)
 - `manual.ts`·`boards.ts`·`boardList.ts`는 워커에서도 쓰므로 `server-only`를 붙이지 않는다
-- 뉴스레터: `/announcements/sources`의 "뉴스레터 붙여 넣기"(지금은 피트페이퍼 링크) → `featpaper.ts`(PDF+링크 상자) → `newsletterPdf.ts`(표 줄 묶기) → `newsletter.ts`(모든 줄을 `source=newsletter` 공고로, 기업마당·K-Startup 링크는 그 ID로 중복 처리). 뉴스·투자는 점수 안 매김. 자세한 건 ARCHITECTURE 4.3.2
+- 뉴스레터: "새 소스 연결하기" → 뉴스레터(`/announcements/sources/new?type=newsletter`)(지금은 피트페이퍼 링크) → `featpaper.ts`(PDF+링크 상자) → `newsletterPdf.ts`(표 줄 묶기) → `newsletter.ts`(모든 줄을 `source=newsletter` 공고로, 기업마당·K-Startup 링크는 그 ID로 중복 처리). 뉴스·투자는 점수 안 매김. 자세한 건 ARCHITECTURE 4.3.2
 
 ## 매칭 (M2)
 - 흐름: 소싱 → `src/server/matching/run.ts`의 `refreshMatches()`(하드필터 `hardFilter.ts`, LLM 없음) → `scorePending()`(LLM, 프롬프트 `src/server/prompts/score.v1.ts`). 프롬프트를 고치면 새 버전 파일을 만들고 `promptVersion`이 바뀌게 한다

@@ -19,6 +19,7 @@
     "sync:probe": "tsx scripts/probe.ts",
     "worker": "tsx worker.ts",
     "score": "tsx scripts/score.ts",
+    "boards:refill": "tsx scripts/board-refill.ts",
     "notify": "tsx scripts/notify.ts",
     "draft": "tsx scripts/draft.ts",
     "forms:measure": "tsx scripts/measure-forms.ts"
